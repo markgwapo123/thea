@@ -43,7 +43,7 @@
   const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], leaders:[], clubStaff:[], allMemberships:[], memberPage:1, memberPagination:null, stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
 
   const demoSeed = () => ({
-    currentUser:'u-student', academicYear:'2026–2027', landingPage:DEFAULT_LANDING, seq:20,
+    currentUser:'u-student', academicYear:'2026–2027', landingPage:DEFAULT_LANDING, branding:{name:DEFAULT_BRAND,logoDataUrl:null}, seq:20,
     users:[
       { _id:'u-student', fullName:'Alex Reyes', studentId:'FBC-2026-001', email:'alex@example.edu', department:'College of Arts & Sciences', yearLevel:'2nd Year', role:'student', status:'active' },
       { _id:'u-adviser', fullName:'Dr. Maria Santos', studentId:'', email:'adviser@example.edu', department:'Student Affairs', yearLevel:'', role:'student', status:'active' },
@@ -84,7 +84,7 @@
     if(cleanPath==='/auth/register'&&method==='POST'){
       if(!payload.fullName || !payload.email || !payload.studentId || String(payload.password||'').length<8)err('Please complete the form and use a password of at least 8 characters.');
       if(demo.users.some(u=>u.email===payload.email || u.studentId===payload.studentId))err('Email or student ID already registered.');
-      const newUser={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:payload.studentId,department:payload.department,yearLevel:payload.yearLevel,role:'student',status:'active'};
+      const newUser={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:payload.studentId,department:payload.department,yearLevel:payload.yearLevel,role:'student',status:'pending',registrationNote:''};
       demo.users.push(newUser);demo.currentUser=newUser._id;return saved({user:newUser});
     }
     if(cleanPath==='/auth/login'&&method==='POST'){
@@ -93,6 +93,24 @@
       demo.currentUser=found._id;return saved({user:found});
     }
     if(cleanPath==='/auth/logout'&&method==='POST'){demo.currentUser='';return saved({ok:true});}
+    if(cleanPath==='/me/profile'&&method==='PUT'){
+      if(!user||user.status!=='active')err('Administrator approval required.');
+      if(String(payload.fullName||'').trim().length<2)err('Enter a valid name.');
+      user.fullName=String(payload.fullName).trim();user.department=String(payload.department||'').trim();user.yearLevel=String(payload.yearLevel||'').trim();
+      return saved({user});
+    }
+    if(cleanPath==='/me/password'&&method==='PUT'){
+      if(!user||user.status!=='active')err('Administrator approval required.');
+      if(String(payload.newPassword||'').length<8)err('Password requires 8 characters.');
+      return saved({ok:true});
+    }
+    if(cleanPath==='/admin/accounts'&&method==='POST'){
+      if(!admin)err('Administrator permission required.');
+      if(String(payload.password||'').length<12)err('Administrator password requires 12 characters.');
+      if(demo.users.some(u=>u.email===payload.email))err('Email already registered.');
+      const created={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:'',department:'',yearLevel:'',role:'admin',status:'active'};
+      demo.users.push(created);return saved({user:created});
+    }
     if(cleanPath==='/clubs'&&method==='GET')return {clubs:demo.clubs.filter(c=>c.status!=='archived')};
     if(cleanPath==='/admin/clubs'&&method==='GET'){
       if(!admin)err('Administrator permission required.');
@@ -104,19 +122,28 @@
     if(parts[0]==='clubs' && parts[1] && method==='PATCH'){
       if(!admin)err('Administrator access required.');const c=clubAt(parts[1]);if(!c)err('Club not found.');Object.assign(c,payload);c.capacity=Number(c.capacity);return saved({club:c});
     }
+    if(parts[0]==='users'&&parts[2]==='registration'&&method==='PATCH'){
+      if(!admin)err('Administrator permission required.');
+      const account=userAt(parts[1]);
+      if(!account||account.role!=='student'||!['pending','rejected'].includes(account.status))err('Account cannot be reviewed.');
+      if(!['approved','rejected'].includes(payload.decision))err('Invalid decision.');
+      account.status=payload.decision==='approved'?'active':'rejected';
+      account.registrationNote=account.status==='rejected'?String(payload.note||''):'';
+      return saved({user:account});
+    }
     if(cleanPath==='/applications'&&method==='GET'){
-      if(query.get('mine')!=='1'&&!admin&&!demo.staff.some(s=>s.userId===user?._id))err('Club staff or administrator permission required.');
+      if(!admin)err('Administrator permission required.');
       const list=demo.applications.filter(a=>query.get('mine')==='1'?a.studentId===user?._id:admin||isStaff(a.clubId));
       return {applications:list.map(a=>({...a,clubId:clubAt(a.clubId),studentId:userAt(a.studentId)})).reverse()};
     }
     if(cleanPath==='/applications'&&method==='POST'){
-      if(!user)err('Please sign in first.');const c=clubAt(payload.clubId);if(!c||c.status!=='open')err('Club is not accepting applications.');
+      if(!admin)err('Administrator permission required.');const c=clubAt(payload.clubId);if(!c||c.status!=='open')err('Club is not accepting applications.');
       if(String(payload.motivation||'').trim().length<15)err('Please write at least 15 characters for your motivation.');
       if(demo.applications.some(a=>a.studentId===user._id&&a.clubId===c._id&&a.academicYear===demo.academicYear))err('You have already applied to this club this year.');
       const a={_id:newId('a'),studentId:user._id,clubId:c._id,academicYear:demo.academicYear,motivation:payload.motivation,createdAt:new Date().toISOString(),status:c.memberCount>=c.capacity?'waitlisted':'pending',remarks:''};demo.applications.push(a);msg(user._id,'Application submitted',`${c.name}: Your application is ${a.status}.`);return saved({application:a});
     }
     if(parts[0]==='applications' && parts[1] && parts[2]==='review'&&method==='PATCH'){
-      const a=demo.applications.find(x=>x._id===parts[1]);if(!a||!isAdviser(a.clubId))err('Not authorized for this club.');if(!['pending','waitlisted','under_review'].includes(a.status))err('This application is already finalized.');
+      const a=demo.applications.find(x=>x._id===parts[1]);if(!admin||!a)err('Not authorized for this club.');if(!['pending','waitlisted','under_review'].includes(a.status))err('This application is already finalized.');
       const c=clubAt(a.clubId);if(payload.status==='approved') {if(c.memberCount>=c.capacity)err('Club is full. Choose Waitlisted.');c.memberCount++;demo.memberships.push({_id:newId('m'),studentId:a.studentId,clubId:a.clubId,academicYear:a.academicYear,joinedAt:new Date().toISOString(),status:'active'});}
       a.status=payload.status;a.remarks=payload.remarks||'';a.reviewedAt=new Date().toISOString();msg(a.studentId,'Application update',`${c.name}: Your application is now ${a.status}.`);return saved({ok:true,status:a.status});
     }
@@ -124,6 +151,7 @@
       const a=demo.applications.find(x=>x._id===parts[1]&&x.studentId===user?._id);if(!a||!['pending','waitlisted'].includes(a.status))err('Cannot cancel this application.');a.status='cancelled';return saved({application:a});
     }
     if(cleanPath==='/memberships'&&method==='GET'){
+      if(!admin)err('Administrator permission required.');
       const cid=query.get('clubId'), all=query.get('all')==='1';
       if(all&&!admin)err('Administrator permission required to view all memberships.');
       if(all&&cid)err('Choose all memberships or one club.');
@@ -135,24 +163,41 @@
         ? {memberships:rows.slice((page-1)*pageSize,page*pageSize).map(m=>({...m,clubId:clubAt(m.clubId),studentId:userAt(m.studentId)})),pagination:{page,pageSize,total:rows.length,pages:Math.max(1,Math.ceil(rows.length/pageSize))}}
         : {memberships:rows.map(m=>({...m,clubId:clubAt(m.clubId),studentId:userAt(m.studentId)}))};
     }
-    if(cleanPath==='/staff'&&method==='GET'){if(!admin&&!demo.staff.some(s=>s.userId===user?._id))err('Club staff or administrator permission required.');return {staff:demo.staff.filter(s=>admin||s.userId===user?._id).map(s=>({...s,clubId:clubAt(s.clubId),userId:userAt(s.userId)}))};}
+    if(cleanPath==='/staff'&&method==='GET'){if(!admin)err('Administrator permission required.');return {staff:demo.staff.filter(s=>admin||s.userId===user?._id).map(s=>({...s,clubId:clubAt(s.clubId),userId:userAt(s.userId)}))};}
     if(cleanPath==='/staff'&&method==='POST'){
       if(!admin)err('Administrator access required.');if(!demo.staff.some(s=>s.userId===payload.userId&&s.clubId===payload.clubId&&s.role===payload.role))demo.staff.push({_id:newId('s'),...payload});return saved({ok:true});
     }
+    if(parts[0]==='staff'&&parts[1]&&method==='DELETE'){
+      if(!admin)err('Administrator permission required.');
+      const position=demo.staff.findIndex(x=>x._id===parts[1]);
+      if(position<0)err('Assignment not found.');
+      demo.staff.splice(position,1);return saved({ok:true});
+    }
+    if(cleanPath==='/leadership'&&method==='GET'){
+      if(!user||user.status!=='active')err('Administrator approval required.');
+      return {leaders:demo.staff.filter(x=>userAt(x.userId)?.status==='active'&&clubAt(x.clubId)?.status!=='archived').map(x=>({_id:x._id,fullName:userAt(x.userId)?.fullName,clubId:x.clubId,clubName:clubAt(x.clubId)?.name,role:x.role}))};
+    }
     if(cleanPath==='/announcements'&&method==='GET')return {announcements:demo.announcements.map(a=>({...a,clubId:clubAt(a.clubId)||null,authorId:userAt(a.authorId)})).reverse()};
     if(cleanPath==='/announcements'&&method==='POST'){
-      if(!(admin||(payload.clubId&&isStaff(payload.clubId))))err('Not authorized to post.');const a={_id:newId('n'),...payload,authorId:user._id,createdAt:new Date().toISOString()};demo.announcements.push(a);return saved({announcement:a});
+      if(!admin)err('Administrator permission required.');const a={_id:newId('n'),...payload,authorId:user._id,createdAt:new Date().toISOString()};demo.announcements.push(a);return saved({announcement:a});
     }
     if(cleanPath==='/notifications'&&method==='GET')return {notifications:demo.notifications.filter(n=>n.userId===user?._id).reverse()};
     if(parts[0]==='notifications'&&parts[2]==='read'&&method==='PATCH'){const n=demo.notifications.find(x=>x._id===parts[1]&&x.userId===user?._id);if(n)n.read=true;return saved({ok:true});}
     if(cleanPath==='/users'&&method==='GET'){if(!admin)err('Administrator only.');return {users:demo.users};}
-    if(parts[0]==='users'&&parts[1]&&method==='PATCH'){if(!admin)err('Administrator only.');const u=userAt(parts[1]);if(!u)err('User not found.');u.status=payload.status;return saved({user:u});}
+    if(parts[0]==='users'&&parts[1]&&method==='PATCH'){if(!admin)err('Administrator only.');const u=userAt(parts[1]);if(!u)err('User not found.');if(payload.status==='active'&&u.status!=='disabled')err('Use registration approval.');if(payload.status==='disabled'&&u.status!=='active')err('Only approved users may be disabled.');u.status=payload.status;return saved({user:u});}
     if(cleanPath==='/stats'&&method==='GET'){
-      if(!admin&&!demo.staff.some(s=>s.userId===user?._id))err('Club staff or administrator permission required.');
+      if(!admin)err('Administrator permission required.');
       const apps=demo.applications.filter(a=>admin||isStaff(a.clubId));
       return {stats:{clubs:demo.clubs.filter(c=>admin||isStaff(c._id)).length,applications:apps.length,memberships:demo.memberships.filter(m=>admin||isStaff(m.clubId)).length,students:admin?demo.users.filter(u=>u.role==='student').length:null,pending:apps.filter(a=>['pending','under_review'].includes(a.status)).length}};
     }
-    if(cleanPath==='/settings'&&method==='GET')return {academicYear:demo.academicYear,landingPage:demo.landingPage||DEFAULT_LANDING};
+    if(cleanPath==='/settings'&&method==='GET')return {academicYear:demo.academicYear,landingPage:demo.landingPage||DEFAULT_LANDING,branding:demo.branding||{name:DEFAULT_BRAND,logoDataUrl:null}};
+    if(cleanPath==='/settings/branding'&&method==='PUT'){
+      if(!admin)err('Administrator permission required.');
+      const name=String(payload.name||'').trim();
+      if(name.length<2||name.length>100)err('Invalid website name.');
+      demo.branding={name,logoDataUrl:payload.logoDataUrl===undefined?(demo.branding?.logoDataUrl||null):payload.logoDataUrl};
+      return saved({branding:demo.branding});
+    }
     if(cleanPath==='/settings/landing-page'&&method==='PUT'){
       if(!admin)err('Administrator access required.');
       if(!payload||!Array.isArray(payload.cards)||payload.cards.length!==3)err('Exactly three cards required.');
@@ -327,7 +372,7 @@
   }
   function approvalStatusPage(){
     const rejected=state.user.status==='rejected';
-    return `<div class="approval-page"><div class="approval-panel"><img class="approval-logo" src="${brandLogo()}" alt="Community logo"><div class="eyebrow">REGISTRATION STATUS</div><h1>${rejected?'Registration Rejected':'Waiting for Admin Approval'}</h1><p>${rejected?'Your registration was not approved. Please contact the organization administrator.':'Your registration has been submitted. An administrator must approve your account before you can access the dashboard.'}</p>${rejected&&state.user.registrationNote?`<p class="approval-note"><strong>Admin note:</strong> ${escapeHtml(state.user.registrationNote)}</p>`:''}<div class="approval-actions"><button class="button primary" data-action="check-approval">Check Status</button><button class="button secondary" data-action="logout">Sign Out</button></div><div class="small muted">Signed in as ${escapeHtml(state.user.email)}</div></div></div>`;
+    return `<div class="approval-page"><div class="approval-panel"><img class="approval-logo" src="${brandLogo()}" alt="Community logo"><div class="eyebrow">REGISTRATION STATUS</div><h1>${rejected?'Registration Rejected':'Waiting for Admin Approval'}</h1><p>${rejected?'Your registration was not approved. Please contact the organization administrator.':'Your registration has been submitted. An administrator must approve your account before you can access the dashboard.'}</p>${rejected&&state.user.registrationNote?`<p class="approval-note"><strong>Admin note:</strong> ${escapeHtml(state.user.registrationNote)}</p>`:''}<div class="approval-actions"><button class="button primary" data-action="check-approval">Check Status</button><button class="button secondary" data-action="logout">Sign Out</button>${cfg.DEMO_MODE?'<button class="button ghost" data-action="demo-role" data-id="u-admin">Preview Admin</button>':''}</div><div class="small muted">Signed in as ${escapeHtml(state.user.email)}</div></div></div>`;
   }
   function notificationsPage(){return topHeading('Notifications','Keep track of important updates about your account and applications.')+`<div class="panel activity-list">${state.notifications.map(n=>`<div class="activity-item"><div class="activity-marker" style="${n.read?'opacity:.48':''}">${n.read?'◌':'✦'}</div><div style="flex:1"><div class="activity-title">${escapeHtml(n.title)} ${!n.read?'<span class="badge pending">New</span>':''}</div><div class="activity-text">${escapeHtml(n.message)}</div><div class="activity-time">${ago(n.createdAt)}</div></div>${!n.read?`<button data-action="mark-read" data-id="${id(n)}" class="button ghost sm">Mark read</button>`:''}</div>`).join('')||empty('♧','All caught up','No notifications right now.')}</div>`;}
   function staffApplicationsPage(){if(!hasStaff()&&!isAdmin())return denied();return topHeading('Application Review','Review club applications, make decisions, and welcome new members.')+applicationTable(staffApps(),true);}
