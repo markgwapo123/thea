@@ -66,7 +66,7 @@ jobs:
           assert.match(css, /@media\(max-width:800px\)\s*\{[\s\S]*?\.public-hero\.hero-simple \.hero-actions\s*\{\s*display:grid;\s*grid-template-columns:minmax\(0,1fr\);/, 'Hero mobile actions must stack in one full-width column');
           assert.match(css, /\.public-hero\.hero-simple \.hero-actions \.button\s*\{[^}]*white-space:normal;[^}]*overflow-wrap:break-word;/, 'Hero button labels must wrap within their own bounds instead of overlapping');
           assert.match(css, /\.public-hero\.hero-simple \.public-art\s*\{[^}]*margin:10px auto 0;/, 'Hero illustration must sit below mobile text');
-          assert.ok(html.includes('styles.css?v=20261026-aligned-user-actions'), 'Updated CSS must bypass stale browser cache');
+          assert.ok(html.includes('styles.css?v=20261026-global-activity-loading'), 'Updated CSS must bypass stale browser cache');
           assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
           assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
           assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
@@ -95,7 +95,7 @@ jobs:
           assert.match(app, /const passwordEyeOffIcon = '<svg /, 'Visible password must use the eye-off SVG');
           assert.ok(app.includes('node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon'), 'Button click must change the eye icon');
           assert.ok(app.includes('aria-controls="f-${name}"'), 'Eye icon should reference the password input');
-          assert.ok(html.includes('app.js?v=20261026-aligned-user-actions'), 'Browser must fetch new password eye JavaScript');
+          assert.ok(html.includes('app.js?v=20261026-global-activity-loading'), 'Browser must fetch new password eye JavaScript');
           assert.ok(app.includes("node.setAttribute('aria-label',reveal?'Hide password':'Show password')"), 'Eye icon button must remain accessible');
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
@@ -106,7 +106,19 @@ jobs:
           assert.ok(app.includes('>Menu</button>'), 'Mobile menu button must be text-only');
           assert.ok(app.includes('class="password-toggle"'), 'Keep essential password eye toggle');
           assert.ok(css.includes('.hero-facts span::before{content:none;display:none}'), 'Landing checklist marks must be hidden');
-          assert.ok(html.includes('styles.css?v=20261026-aligned-user-actions') && html.includes('app.js?v=20261026-aligned-user-actions'), 'Mobile browsers must fetch fresh assets');
+          assert.ok(html.includes('styles.css?v=20261026-global-activity-loading') && html.includes('app.js?v=20261026-global-activity-loading'), 'Mobile browsers must fetch fresh assets');
+          assert.match(html, /id="haven-loading"/, 'Global loading overlay must be available on all pages');
+          assert.match(html, /id="haven-loading-message"/, 'Global loading status label must be accessible');
+          assert.ok(app.includes('const activeLoaders=new Map()'), 'Concurrent operations must share a reference-counted loader');
+          assert.ok(app.includes('const endLoading=beginLoading(loadingMessage(method,path),1)'), 'Every API request must show loading');
+          assert.ok(app.includes('endLoading();'), 'All request paths must release the loader');
+          assert.ok(app.includes("beginLoading('Loading community data...',2)"), 'Page data refresh must show loading until completion');
+          assert.ok(app.includes('form.dataset.submitting'), 'Modal submits must reject double clicks');
+          assert.ok(app.includes('class="haven-inline-spinner"'), 'Modal Save and Login buttons must display spinners');
+          assert.ok(app.includes('btn.setAttribute(\'aria-busy\',\'true\')'), 'Submitting state must be accessible');
+          assert.ok(css.includes('.haven-loading[hidden]{display:none!important}'), 'Hidden state must override overlay display');
+          assert.ok(css.includes('@keyframes havenLoadingSpin'), 'Visible spinner must animate');
+          assert.ok(css.includes('@media(prefers-reduced-motion:reduce)'), 'Reduced motion users must be supported');
           assert.ok(app.includes('async function checkApprovalStatus()'), 'Check Status needs a dedicated live request');
           assert.ok(app.includes("const latest=await get('/me')"), 'Current status must be fetched from /me');
           assert.ok(app.includes("if(type==='check-approval'){await checkApprovalStatus();return;}"), 'Button must use live status refresh');

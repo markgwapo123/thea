@@ -10,7 +10,7 @@
   <meta name="description" content="THE HAVEN: Peer Facilitators' Community — school club registration and management portal for Fellowship Baptist College.">
   <title>THE HAVEN | Peer Facilitators' Community</title>
   <link rel="icon" href="./assets/haven-logo.png" type="image/png">
-  <link rel="stylesheet" href="./styles.css?v=20261026-aligned-user-actions">
+  <link rel="stylesheet" href="./styles.css?v=20261026-global-activity-loading">
 </head>
 <body>
   <button type="button" class="skip-link" data-action="skip-content">Skip to main content</button>
@@ -28,7 +28,13 @@
   <div id="app"></div>
   <div id="modal-root"></div>
   <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <div id="haven-loading" class="haven-loading" hidden>
+    <div class="haven-loading-card" role="status" aria-live="polite" aria-atomic="true">
+      <span class="haven-loading-spinner" aria-hidden="true"></span>
+      <span id="haven-loading-message">Loading...</span>
+    </div>
+  </div>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261026-aligned-user-actions" defer></script>
+  <script src="./app.js?v=20261026-global-activity-loading" defer></script>
 </body>
 </html>
