@@ -11,7 +11,7 @@ const jwtSecret = process.env.JWT_SECRET || '';
 const checks = [
   ['MONGODB_URI', Boolean(process.env.MONGODB_URI) && !/YOUR_|REPLACE_WITH_/.test(process.env.MONGODB_URI || ''), 'must be configured using a private GitHub Actions secret'],
   ['JWT_SECRET', jwtSecret.length >= 32, 'must contain at least 32 characters'],
-  ['ADMIN_EMAIL', /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email), 'must be a valid email address'],
+  ['ADMIN_EMAIL', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), 'must be a valid email address'],
   ['ADMIN_PASSWORD', password.length >= 12 && password.length <= 128, 'must be 12 to 128 characters']
 ];
 const failures = checks.filter(([, pass]) => !pass);
