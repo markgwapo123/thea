@@ -1,0 +1,46 @@
+name: THE HAVEN - Frontend Quality Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'the-haven-webapp/frontend/**'
+      - '.github/workflows/frontend-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout THE HAVEN
+        uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate frontend JavaScript
+        run: |
+          node --check the-haven-webapp/frontend/app.js
+          node --check the-haven-webapp/frontend/config.js
+      - name: Verify essential UI elements
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const base = 'the-haven-webapp/frontend/';
+          const html = fs.readFileSync(base + 'index.html', 'utf8');
+          const css = fs.readFileSync(base + 'styles.css', 'utf8');
+          const app = fs.readFileSync(base + 'app.js', 'utf8');
+          assert.match(html, /id="splash"/, 'Splash screen is required');
+          assert.match(html, /data-action="skip-content"/, 'Keyboard skip control is required');
+          assert.match(css, /@keyframes havenPulse/, 'Logo pulse animation is required');
+          assert.match(css, /\.club-progress/, 'Club capacity indicator is required');
+          assert.match(app, /modalReturnFocus/, 'Dialog focus restoration is required');
+          assert.match(app, /toggle-password/, 'Password visibility control is required');
+          assert.match(app, /id="main-content"/, 'Main content landmark is required');
+          console.log('THE HAVEN UI checks passed. No deployment occurred.');
+          NODE
