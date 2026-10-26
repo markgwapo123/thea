@@ -8,9 +8,12 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js",
-    "check": "node --check src/server.js && node --check src/models.js && node --check src/seed.js"
+    "check": "node --check src/server.js && node --check src/models.js && node --check src/seed.js && node --check src/check-db.js",
+    "db:check": "node src/check-db.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
