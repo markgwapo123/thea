@@ -10,7 +10,11 @@ const userSchema = new Schema({
   department: { type: String, trim: true, maxlength: 100, default: '' },
   yearLevel: { type: String, trim: true, maxlength: 40, default: '' },
   role: { type: String, enum: ['student', 'admin'], default: 'student' },
-  status: { type: String, enum: ['active', 'disabled'], default: 'active' }
+  // Registered students require administrator approval before accessing the portal.
+  status: { type: String, enum: ['pending','active','rejected','disabled'], default: 'pending' },
+  registrationNote: { type: String, maxlength: 300, default: '' },
+  approvedAt: { type: Date, default: null },
+  approvedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null }
 }, base);
 
 const clubSchema = new Schema({
