@@ -1639,3 +1639,103 @@ h1,h2,h3,h4,h5,h6{line-height:1.3;letter-spacing:-.022em}
   .announcement-card-button,.dashboard-update-card{transition:none}
   .announcement-card-button:active,.dashboard-update-card:active{transform:none}
 }
+
+
+/* Announcement viewer only: a genuine centered dialog on mobile and desktop.
+   Other editing/login modals intentionally retain their current bottom sheets. */
+.announcement-modal-backdrop{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  padding:20px;
+  padding-top:calc(20px + env(safe-area-inset-top));
+  padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  overflow-y:auto;
+}
+.announcement-modal-backdrop .announcement-detail-modal{
+  box-sizing:border-box;
+  width:100%;
+  max-width:540px;
+  min-width:0;
+  min-height:0;
+  max-height:min(740px,calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  margin:auto;
+  padding:26px 26px 24px;
+  overflow-x:hidden;
+  overflow-y:auto;
+  flex:0 1 auto;
+  border:1px solid #e9dfcf;
+  border-radius:20px;
+  background:#fffefb;
+  box-shadow:0 22px 75px rgba(37,28,17,.19);
+  scrollbar-width:thin;
+  scrollbar-color:#d8c8ac transparent;
+}
+.announcement-modal-backdrop .announcement-detail-modal::before{
+  content:none;
+  display:none;
+}
+.announcement-modal-backdrop .announcement-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin:0 0 18px;
+}
+.announcement-modal-backdrop .announcement-modal-header .close-modal{
+  width:38px;
+  height:38px;
+  margin:0;
+  flex:0 0 38px;
+}
+.announcement-modal-backdrop .announcement-modal-meta{margin-bottom:14px}
+.announcement-modal-backdrop .announcement-modal-title{margin-bottom:18px}
+.announcement-modal-backdrop .announcement-modal-content{margin:0}
+.announcement-modal-backdrop .announcement-modal-author{margin-top:22px}
+.announcement-modal-backdrop .announcement-modal-footer{
+  margin-top:20px;
+  padding-top:2px;
+}
+@media(max-width:640px){
+  .announcement-modal-backdrop{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+    padding-top:calc(16px + env(safe-area-inset-top));
+    padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    overflow-y:auto;
+  }
+  .announcement-modal-backdrop .announcement-detail-modal{
+    width:100%;
+    max-width:480px;
+    min-width:0;
+    min-height:0;
+    max-height:calc(100dvh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    margin:auto;
+    padding:22px 20px;
+    border:1px solid #e9dfcf;
+    border-radius:18px;
+  }
+  .announcement-modal-backdrop .announcement-modal-header{margin-bottom:16px}
+  .announcement-modal-backdrop .announcement-modal-title{
+    font-size:23px;
+    line-height:1.3;
+  }
+  .announcement-modal-backdrop .announcement-modal-content{
+    font-size:14px;
+    line-height:1.75;
+  }
+  .announcement-modal-backdrop .announcement-modal-footer{margin-top:20px}
+  .announcement-modal-backdrop .announcement-modal-footer .button{
+    width:100%;
+    min-height:46px;
+  }
+}
+@media(max-width:359px){
+  .announcement-modal-backdrop{padding-inline:12px}
+  .announcement-modal-backdrop .announcement-detail-modal{padding:20px 16px}
+  .announcement-modal-backdrop .announcement-modal-title{font-size:21px}
+}

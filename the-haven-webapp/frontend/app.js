@@ -552,7 +552,7 @@
     if(!announcement){toast('This announcement is no longer available. Refresh the page and try again.',true);return;}
     if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
     document.body.classList.add('modal-open');
-    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop">
+    $('#modal-root').innerHTML=`<div class="modal-backdrop announcement-modal-backdrop" data-action="modal-backdrop">
       <div class="modal announcement-detail-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-modal-heading" aria-describedby="announcement-modal-content">
         <div class="modal-header announcement-modal-header">
           <span class="dashboard-section-label">COMMUNITY ANNOUNCEMENT</span>
