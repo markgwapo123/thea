@@ -26,6 +26,23 @@ jobs:
         run: |
           node --check the-haven-webapp/frontend/app.js
           node --check the-haven-webapp/frontend/config.js
+      - name: Verify Vercel-to-Render production API routing
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const dir = 'the-haven-webapp/frontend/';
+          const cfg = fs.readFileSync(dir + 'config.js', 'utf8');
+          const routes = JSON.parse(fs.readFileSync(dir + 'vercel.json', 'utf8'));
+          assert.match(cfg, /DEMO_MODE:\s*false/, 'Production must not use demo accounts');
+          assert.match(cfg, /API_BASE_URL:\s*'\/api'/, 'API must be a same-origin /api path');
+          assert.equal(routes.outputDirectory, '.');
+          assert.ok(routes.rewrites.some(x =>
+            x.source === '/api/:path*' &&
+            x.destination === 'https://the-haven-backend.onrender.com/api/:path*'
+          ), 'Proxy must forward /api requests to THE HAVEN Render backend');
+          console.log('Production config and Vercel external API rewrite valid.');
+          NODE
       - name: Verify essential UI elements
         run: |
           node --input-type=module - <<'NODE'
