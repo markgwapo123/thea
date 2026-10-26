@@ -1,0 +1,57 @@
+name: THE HAVEN - Phase 3 Frontend and Backend Integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  same-origin-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: the-haven-webapp/backend
+    steps:
+      - name: Checkout THE HAVEN
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Confirm secrets exist without printing them
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          if [ -z "$MONGODB_URI" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ] || [ -z "$JWT_SECRET" ]; then
+            echo "::error::MONGODB_URI, ADMIN_EMAIL, ADMIN_PASSWORD, and JWT_SECRET are required as private Actions secrets."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check backend and frontend syntax
+        run: |
+          npm run check
+          node --check ../frontend/app.js
+          node --check ../frontend/config.js
+
+      - name: Test hosted-frontend mode with real backend and MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: the_haven_db
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SMOKE_SINGLE_ORIGIN: "true"
+        run: npm run api:smoke
+
+      - name: Clarify deployment status
+        run: echo "Phase 3 integration test complete. Temporary server stopped. No Vercel or Render deployment occurred."
