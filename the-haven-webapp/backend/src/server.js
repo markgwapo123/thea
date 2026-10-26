@@ -227,7 +227,15 @@ app.get('/api/memberships', auth, wrap(async (req, res) => {
     if (!validId(req.query.clubId) || !(await canManage(req.user, req.query.clubId))) return fail(res, 'Not authorized for club members.', 403);
     filter = { clubId: req.query.clubId };
   } else filter = { studentId: req.user._id };
-  const memberships = await Membership.find(filter).populate('studentId', 'fullName studentId department yearLevel').populate('clubId', 'name category').sort({ joinedAt: -1 }).limit(req.query.all === '1' ? 500 : 500);
+  const page = Number(req.query.page || 1);
+  if (req.query.all === '1' && (!Number.isSafeInteger(page) || page < 1 || page > 100000)) return fail(res, 'Invalid membership page.');
+  const pageSize = 100;
+  const query = Membership.find(filter).populate('studentId', 'fullName studentId department yearLevel').populate('clubId', 'name category').sort({ joinedAt: -1 });
+  if (req.query.all === '1') {
+    const [memberships, total] = await Promise.all([query.skip((page - 1) * pageSize).limit(pageSize), Membership.countDocuments(filter)]);
+    return res.json({ memberships, pagination: { page, pageSize, total, pages: Math.max(1, Math.ceil(total / pageSize)) } });
+  }
+  const memberships = await query;
   res.json({ memberships });
 }));
 app.get('/api/staff', auth, onlyManager, wrap(async (req, res) => {
