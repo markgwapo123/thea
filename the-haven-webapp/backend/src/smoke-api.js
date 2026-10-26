@@ -7,10 +7,19 @@ const email = String(process.env.ADMIN_EMAIL || '').trim();
 const password = String(process.env.ADMIN_PASSWORD || '');
 const jwtSecret = process.env.JWT_SECRET || '';
 
-if (!process.env.MONGODB_URI || jwtSecret.length < 32 || !email || !password) {
-  console.error('Missing MONGODB_URI, JWT_SECRET (32+ characters), ADMIN_EMAIL, or ADMIN_PASSWORD.');
-  process.exit(1);
+// Report which setting is invalid without printing its value.
+const checks = [
+  ['MONGODB_URI', Boolean(process.env.MONGODB_URI) && !/YOUR_|REPLACE_WITH_/.test(process.env.MONGODB_URI || ''), 'must be configured using a private GitHub Actions secret'],
+  ['JWT_SECRET', jwtSecret.length >= 32, 'must contain at least 32 characters'],
+  ['ADMIN_EMAIL', /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email), 'must be a valid email address'],
+  ['ADMIN_PASSWORD', password.length >= 12 && password.length <= 128, 'must be 12 to 128 characters']
+];
+const failures = checks.filter(([, pass]) => !pass);
+for (const [key, , requirement] of failures) {
+  console.error('Configuration issue: ' + key + ' ' + requirement + '.');
 }
+if (failures.length) process.exit(1);
+console.log('PASS: Private backend configuration format');
 
 // A short-lived backend is started only inside this GitHub Actions runner.
 // Do not log secrets, student data, response bodies, or cookies.
@@ -71,7 +80,13 @@ try {
     headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:' + port },
     body: JSON.stringify({ email, password })
   });
-  check(login.status === 200, 'Real administrator authentication');
+  if (login.status !== 200) {
+    if (login.status === 401) {
+      throw new Error('Real admin login returned 401: ADMIN_EMAIL or ADMIN_PASSWORD may not match the initial account; do not put credentials in logs');
+    }
+    throw new Error('Real admin login returned HTTP ' + login.status);
+  }
+  check(true, 'Real administrator authentication');
   const cookie = login.headers.get('set-cookie')?.split(';', 1)[0];
   check(Boolean(cookie) && cookie.startsWith('haven_token='), 'HTTP-only session cookie issued');
 
