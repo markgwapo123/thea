@@ -66,7 +66,7 @@ jobs:
           assert.match(css, /@media\(max-width:800px\)\s*\{[\s\S]*?\.public-hero\.hero-simple \.hero-actions\s*\{\s*display:grid;\s*grid-template-columns:minmax\(0,1fr\);/, 'Hero mobile actions must stack in one full-width column');
           assert.match(css, /\.public-hero\.hero-simple \.hero-actions \.button\s*\{[^}]*white-space:normal;[^}]*overflow-wrap:break-word;/, 'Hero button labels must wrap within their own bounds instead of overlapping');
           assert.match(css, /\.public-hero\.hero-simple \.public-art\s*\{[^}]*margin:10px auto 0;/, 'Hero illustration must sit below mobile text');
-          assert.ok(html.includes('styles.css?v=20261026-singleline-studentid'), 'Updated CSS must bypass stale browser cache');
+          assert.ok(html.includes('styles.css?v=20261026-user-management-id-nowrap'), 'Updated CSS must bypass stale browser cache');
           assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
           assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
           assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
@@ -95,7 +95,7 @@ jobs:
           assert.match(app, /const passwordEyeOffIcon = '<svg /, 'Visible password must use the eye-off SVG');
           assert.ok(app.includes('node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon'), 'Button click must change the eye icon');
           assert.ok(app.includes('aria-controls="f-${name}"'), 'Eye icon should reference the password input');
-          assert.ok(html.includes('app.js?v=20261026-singleline-studentid'), 'Browser must fetch new password eye JavaScript');
+          assert.ok(html.includes('app.js?v=20261026-user-management-id-nowrap'), 'Browser must fetch new password eye JavaScript');
           assert.ok(app.includes("node.setAttribute('aria-label',reveal?'Hide password':'Show password')"), 'Eye icon button must remain accessible');
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
@@ -106,7 +106,7 @@ jobs:
           assert.ok(app.includes('>Menu</button>'), 'Mobile menu button must be text-only');
           assert.ok(app.includes('class="password-toggle"'), 'Keep essential password eye toggle');
           assert.ok(css.includes('.hero-facts span::before{content:none;display:none}'), 'Landing checklist marks must be hidden');
-          assert.ok(html.includes('styles.css?v=20261026-singleline-studentid') && html.includes('app.js?v=20261026-singleline-studentid'), 'Mobile browsers must fetch fresh assets');
+          assert.ok(html.includes('styles.css?v=20261026-user-management-id-nowrap') && html.includes('app.js?v=20261026-user-management-id-nowrap'), 'Mobile browsers must fetch fresh assets');
           assert.ok(css.includes("font-family:var(--font-ui)"), 'System typography must share the friendly font family');
           assert.ok(css.includes("family=Nunito+Sans"), 'Nunito Sans font must be loaded');
           assert.ok(css.includes(".dashboard-home--member{gap:24px}"), 'Member dashboard should have clear vertical rhythm');
@@ -160,12 +160,17 @@ jobs:
           assert.ok(app.includes("await mutation('DELETE',`/users/${userId}`"), 'Frontend must call backend delete endpoint');
           assert.ok(css.includes('.delete-user-warning{'), 'Permanent deletion needs a clear warning');
           assert.ok(app.includes('class="table-action user-management-actions"'), 'User Management action cells must have a dedicated alignment class');
+          assert.ok(app.includes('class="table-wrap user-management-table"'), 'User Management must have its own table class');
+          assert.match(css, /\.user-management-table th:nth-child\(2\),\s*\.user-management-table td:nth-child\(2\)\s*\{[^}]*white-space:nowrap;/, 'User Management Student ID header and values must stay on one line');
+          assert.match(css, /\.user-management-table table\s*\{[^}]*min-width:940px;/, 'User Management columns must have sufficient table width');
+          assert.match(css, /\.user-management-table\s*\{[^}]*overflow-x:auto;/, 'User Management table must scroll inside its container on mobile');
+          assert.ok(html.includes('styles.css?v=20261026-user-management-id-nowrap') && html.includes('app.js?v=20261026-user-management-id-nowrap'), 'Mobile browsers must load fresh User Management styles');
           assert.ok(app.includes('class="table-action registration-request-actions"'), 'Registration Requests must have an aligned action column');
           assert.ok(app.includes('class="table-wrap registration-requests-table"'), 'Registration tables must use the scoped nonwrapping column layout');
           assert.ok(css.includes('.registration-requests-table th:nth-child(2),'), 'Student ID header and cell must be targeted');
           assert.match(css, /\.registration-requests-table td:nth-child\(2\)\s*\{[^}]*white-space:nowrap;/, 'Student ID heading and values must stay on one line');
           assert.match(css, /\.registration-requests-table table\s*\{[^}]*min-width:880px;/, 'Registration table must reserve enough width and allow horizontal scrolling');
-          assert.ok(html.includes('styles.css?v=20261026-singleline-studentid') && html.includes('app.js?v=20261026-singleline-studentid'), 'Mobile browsers must fetch the refreshed registration table styles');
+          assert.ok(html.includes('styles.css?v=20261026-user-management-id-nowrap') && html.includes('app.js?v=20261026-user-management-id-nowrap'), 'Mobile browsers must fetch the refreshed registration table styles');
           assert.match(css, /\.registration-request-actions\s*\{[\s\S]*?grid-template-columns:minmax\(0,1fr\);/, 'Approve and Reject actions must be one column');
           assert.match(css, /\.registration-request-actions \.button\s*\{[\s\S]*?width:100%;\s*min-width:0;\s*min-height:44px;/, 'Approve and Reject must use identical button widths and heights');
           assert.ok(css.includes('.registration-request-actions{width:150px;min-width:150px;gap:8px}'), 'Registration buttons must be consistently sized for mobile');
