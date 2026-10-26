@@ -695,3 +695,15 @@ input:disabled{background:#f5f3ef;color:#777268}
   .modal-footer{flex-direction:column}
   .modal-footer .button{width:100%;flex:0 0 auto}
 }
+
+/* Keep hero CTA labels on one line on phones; avoid splitting "My Dashboard". */
+@media(max-width:640px){
+  .public-hero .hero-actions .button{
+    white-space:nowrap;
+    overflow-wrap:normal;
+    word-break:normal;
+    font-size:clamp(11px,3.25vw,13px);
+    padding-inline:8px;
+    gap:5px;
+  }
+}
