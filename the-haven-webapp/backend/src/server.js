@@ -18,8 +18,26 @@ if (!process.env.MONGODB_URI || !process.env.JWT_SECRET || process.env.JWT_SECRE
 const app = express();
 app.set('trust proxy', 1);
 const production = process.env.NODE_ENV === 'production';
-const origins = (process.env.FRONTEND_ORIGINS || 'http://localhost:4000').split(',').map(s => s.trim()).filter(Boolean);
-app.use(helmet({ contentSecurityPolicy: production ? undefined : false }));
+// Optional single-origin service: Render can serve both the frontend and API.
+// The normal standalone frontend stays in demo mode until a real host is configured.
+const serveFrontend = process.env.SERVE_FRONTEND === 'true';
+const ownOrigin = process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:4000';
+const origins = [...new Set([...(process.env.FRONTEND_ORIGINS || 'http://localhost:4000').split(','), ownOrigin].map(s => s.trim()).filter(Boolean))];
+const csp = production && serveFrontend ? {
+  directives: {
+    defaultSrc: ["'self'"],
+    baseUri: ["'self'"],
+    scriptSrc: ["'self'"],
+    connectSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+    imgSrc: ["'self'", 'data:'],
+    objectSrc: ["'none'"],
+    frameAncestors: ["'none'"],
+    upgradeInsecureRequests: []
+  }
+} : production ? undefined : false;
+app.use(helmet({ contentSecurityPolicy: csp }));
 app.use(cors({ origin(origin, cb) { if (!origin || origins.includes(origin)) return cb(null, true); cb(new Error('Origin not allowed')); }, credentials: true }));
 // Require approved web origins for state-changing cross-site requests.
 app.use((req, res, next) => {
@@ -34,7 +52,10 @@ const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 25, standardHeade
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const validId = id => mongoose.isValidObjectId(id);
 const safe = u => ({ _id: u._id, fullName: u.fullName, email: u.email, studentId: u.studentId || '', yearLevel: u.yearLevel, department: u.department, role: u.role, status: u.status });
-const cookieOpts = { httpOnly: true, secure: production, sameSite: production ? 'none' : 'lax', path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 };
+// For a single-origin app, Lax cookies avoid unnecessary third-party cookie blocking.
+// Set CROSS_SITE_COOKIES=true only when a separately hosted HTTPS frontend is approved.
+const cookieSameSite = process.env.CROSS_SITE_COOKIES === 'true' ? 'none' : 'lax';
+const cookieOpts = { httpOnly: true, secure: production || cookieSameSite === 'none', sameSite: cookieSameSite, path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 };
 const clean = (v, max = 150) => String(v ?? '').trim().slice(0, max);
 const fail = (res, msg, code = 400) => res.status(code).json({ error: msg });
 const year = async () => (await Setting.findOne({ key: 'academicYear' }))?.value || '2026–2027';
@@ -250,9 +271,16 @@ app.put('/api/settings/academic-year', auth, onlyAdmin, wrap(async (req, res) =>
   res.json({ academicYear: value });
 }));
 
-// Local single-server development: the same frontend can be served at http://localhost:4000.
-if (!production) {
+// Single-origin production option: a trusted backend serves the existing HTML/CSS/JS.
+// The public /config.js response contains NO secrets, just the same-origin API path.
+if (!production || serveFrontend) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend');
+  if (serveFrontend) {
+    app.get('/config.js', (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      res.type('application/javascript').send("window.HAVEN_CONFIG = Object.freeze({ DEMO_MODE: false, API_BASE_URL: '/api' });\n");
+    });
+  }
   app.use(express.static(root));
   app.get('/', (req, res) => res.sendFile(path.join(root, 'index.html')));
 }
