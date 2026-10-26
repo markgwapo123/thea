@@ -66,7 +66,8 @@ jobs:
           assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
           assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
           assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
-          assert.ok(css.includes('.splash-emblem .splash-ring{') && css.includes('top:50%;\\n  left:50%;\\n  border-radius:50%;\\n  transform:translate(-50%,-50%);'.replaceAll('\\n','\n')), 'Splash circles must share the logo center');
+          assert.ok(css.includes('.splash-emblem .splash-ring{'), 'Decorative splash rings must use emblem positioning');
+          assert.match(css, /top:50%;\s*left:50%;\s*border-radius:50%;\s*transform:translate\(-50%,-50%\);/, 'Splash circles must share the logo center');
           assert.ok(css.includes('.splash::before,.splash::after{content:none}'), 'Offset screen-level splash rings must be disabled');
           assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length,'CSS block braces must balance');
           console.log('THE HAVEN phone/tablet responsive layout checks passed.');
