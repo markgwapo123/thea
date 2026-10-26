@@ -696,14 +696,92 @@ input:disabled{background:#f5f3ef;color:#777268}
   .modal-footer .button{width:100%;flex:0 0 auto}
 }
 
-/* Keep hero CTA labels on one line on phones; avoid splitting "My Dashboard". */
-@media(max-width:640px){
-  .public-hero .hero-actions .button{
-    white-space:nowrap;
-    overflow-wrap:normal;
-    word-break:normal;
-    font-size:clamp(11px,3.25vw,13px);
-    padding-inline:8px;
-    gap:5px;
+/* Real mobile hero layout: prevent narrow two-column CTA labels from
+   spilling into neighboring buttons. Keep illustration below the content. */
+@media(max-width:800px){
+  .public-hero.hero-simple{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    justify-items:stretch;
+    align-items:start;
+    gap:14px;
+    min-height:0;
+    padding:34px 20px 42px;
+    text-align:center;
   }
+  .public-hero.hero-simple>div:first-child{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+  .public-hero.hero-simple .eyebrow{
+    width:fit-content;
+    max-width:100%;
+    margin-inline:auto;
+    justify-content:center;
+    white-space:normal;
+    overflow-wrap:break-word;
+    text-align:center;
+  }
+  .public-hero.hero-simple .hero-actions{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    width:min(100%,380px);
+    max-width:100%;
+    margin:16px auto 0;
+    gap:12px;
+    justify-items:stretch;
+  }
+  .public-hero.hero-simple .hero-actions .button{
+    display:flex;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    min-height:48px;
+    margin:0;
+    padding:12px 16px;
+    font-size:14px;
+    line-height:1.35;
+    white-space:normal;
+    overflow-wrap:break-word;
+    word-break:normal;
+    text-align:center;
+    justify-content:center;
+  }
+  .public-hero.hero-simple .hero-facts{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+    width:fit-content;
+    max-width:100%;
+    margin:24px auto 0;
+    gap:12px;
+    text-align:left;
+  }
+  .public-hero.hero-simple .hero-facts span{max-width:100%;min-width:0}
+  .public-hero.hero-simple .helper{
+    width:100%;
+    margin-inline:auto;
+    text-align:center;
+    overflow-wrap:break-word;
+  }
+  .public-hero.hero-simple .public-art{
+    width:min(100%,300px);
+    min-width:0;
+    min-height:220px;
+    margin:10px auto 0;
+  }
+  .public-hero.hero-simple .public-art img{
+    width:min(72%,195px);
+    max-width:100%;
+  }
+  .public-hero.hero-simple .public-art:before{max-width:235px}
+  .public-hero.hero-simple .public-art:after{max-width:215px}
+}
+@media(max-width:359px){
+  .public-hero.hero-simple{padding-inline:14px}
+  .public-hero.hero-simple .hero-actions{width:100%}
+  .public-hero.hero-simple .hero-actions .button{font-size:13px}
+  .public-hero.hero-simple .public-art{min-height:200px}
 }
