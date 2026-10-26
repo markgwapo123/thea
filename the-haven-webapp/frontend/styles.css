@@ -941,3 +941,39 @@ input:disabled{background:#f5f3ef;color:#777268}
 @media(max-width:640px){
   .approval-check-feedback{font-size:12px;margin:4px auto 16px}
 }
+
+
+/* Destructive account management is deliberately text-first and prominent. */
+.delete-user-warning{
+  margin:0 0 16px;
+  padding:14px 16px;
+  border-left:3px solid #ae5948;
+  border-radius:9px;
+  background:#fff4ef;
+  color:#794237;
+  font-size:13px;
+  line-height:1.7;
+}
+.delete-user-summary{
+  display:grid;
+  gap:5px;
+  padding:14px 16px;
+  margin-bottom:20px;
+  border:1px solid #e9e0d5;
+  border-radius:11px;
+  background:#fffdfa;
+}
+.delete-user-summary strong{font-size:14px;color:#40362d;overflow-wrap:anywhere}
+.delete-user-summary span{font-size:12px;color:#766a5c;overflow-wrap:anywhere}
+.modal-footer .button.danger{
+  background:#9f4038;
+  border-color:#9f4038;
+  color:#fff;
+  font-weight:800;
+}
+.modal-footer .button.danger:hover{background:#87372f;border-color:#87372f}
+.modal-footer .button.danger:focus-visible{outline:2px solid #87372f;outline-offset:2px}
+@media(max-width:640px){
+  .delete-user-warning{padding:12px;font-size:12px}
+  .delete-user-summary{padding:12px}
+}
