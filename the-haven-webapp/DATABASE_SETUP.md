@@ -9,6 +9,18 @@ A database connection string containing a password was previously shared in chat
 
 Prefer a dedicated Atlas database user `haven_app` with **readWrite on the_haven_db only**, rather than broad admin permissions. In Atlas Network Access, allow the IP address of the machine/server running your backend.
 
+## No laptop? Test from GitHub Actions (without Vercel/Render deployment)
+
+1. **Rotate the old shared Atlas password first.** Use a dedicated least-privilege database account for THE HAVEN.
+2. On a phone, open [THE HAVEN Actions Secrets](https://github.com/markgwapo123/thea/settings/secrets/actions).
+3. Choose **New repository secret**; set **Name** to `MONGODB_URI`. Paste the newly rotated MongoDB Atlas URI as its **Value** (not into a GitHub file, issue, or chat), then save.
+4. Open [THE HAVEN MongoDB Connection Check](https://github.com/markgwapo123/thea/actions/workflows/mongodb-connection-check.yml).
+5. Tap **Run workflow** on `main`. This connects to `the_haven_db` and runs a read-only ping. It does *not* insert seed data, deploy a server, or turn demo mode off.
+
+**Network access:** GitHub Actions uses cloud-hosted runners whose outbound IP changes. MongoDB Atlas Network Access must allow that runner for the connection test. Don't blindly add `0.0.0.0/0`; prefer a fixed-IP trusted runtime or approved network access policy for production. A connectivity failure does not mean your data was changed.
+
+**After a successful ping:** The database credentials have been verified in GitHub Actions, but the web app will not use live data until the Express backend is run on a server with its own private `MONGODB_URI`, `JWT_SECRET`, and appropriate Atlas network access; then `frontend/config.js` can switch `DEMO_MODE` off. No deployment has been requested yet.
+
 ## Configure locally (Windows PowerShell)
 From the repository root:
 
