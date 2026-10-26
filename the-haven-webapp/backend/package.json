@@ -8,8 +8,9 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js",
-    "check": "node --check src/server.js && node --check src/models.js && node --check src/seed.js && node --check src/check-db.js",
-    "db:check": "node src/check-db.js"
+    "check": "node --check src/server.js && node --check src/models.js && node --check src/seed.js && node --check src/check-db.js && node --check src/init-db.js",
+    "db:check": "node src/check-db.js",
+    "db:init": "node src/init-db.js"
   },
   "engines": {
     "node": ">=20"
