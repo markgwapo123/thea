@@ -135,10 +135,10 @@ jobs:
           assert.ok(app.includes("await mutation('DELETE',`/users/${userId}`"), 'Frontend must call backend delete endpoint');
           assert.ok(css.includes('.delete-user-warning{'), 'Permanent deletion needs a clear warning');
           assert.ok(app.includes('class="table-action user-management-actions"'), 'User Management action cells must have a dedicated alignment class');
-          assert.ok(css.includes('.user-management-actions{\\n  display:grid;'), 'User action buttons must stack consistently');
+          assert.match(css, /\.user-management-actions\s*\{\s*display:grid;/, 'User action buttons must stack consistently');
           assert.ok(css.includes('grid-template-columns:minmax(0,1fr);'), 'Button column must remain single-width');
-          assert.ok(css.includes('.user-management-actions .button{\\n  display:flex;'), 'Button centering must be scoped to user management');
-          assert.ok(css.includes('width:100%;\\n  min-width:0;\\n  min-height:44px;'), 'Review and Delete buttons must share their dimensions');
+          assert.match(css, /\.user-management-actions \.button\s*\{\s*display:flex;/, 'Button centering must be scoped to user management');
+          assert.match(css, /width:100%;\s*min-width:0;\s*min-height:44px;/, 'Review and Delete buttons must share their dimensions');
           assert.ok(css.includes('.user-management-actions{width:150px;min-width:150px;gap:8px}'), 'Mobile buttons need consistent widths');
           const smoke = fs.readFileSync('the-haven-webapp/backend/src/smoke-api.js', 'utf8');
           assert.ok(smoke.includes('Guest cannot permanently delete a student'), 'Guests must never delete users');
