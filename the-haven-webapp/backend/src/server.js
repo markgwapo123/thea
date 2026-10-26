@@ -52,7 +52,13 @@ app.use(cookieParser());
 const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 25, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many attempts. Try again later.' } });
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const validId = id => mongoose.isValidObjectId(id);
-const safe = u => ({ _id: u._id, fullName: u.fullName, email: u.email, studentId: u.studentId || '', yearLevel: u.yearLevel, department: u.department, role: u.role, status: u.status, registrationNote: u.registrationNote || '' });
+const safe = u => ({
+  _id:u._id, fullName:u.fullName, email:u.email, studentId:u.studentId||'',
+  yearLevel:u.yearLevel, department:u.department,
+  age:u.age??null, address:u.address||'', skills:u.skills||'',
+  talents:u.talents||'', joinReason:u.joinReason||'',
+  role:u.role, status:u.status, registrationNote:u.registrationNote||''
+});
 // For a single-origin app, Lax cookies avoid unnecessary third-party cookie blocking.
 // Set CROSS_SITE_COOKIES=true only when a separately hosted HTTPS frontend is approved.
 const cookieSameSite = process.env.CROSS_SITE_COOKIES === 'true' ? 'none' : 'lax';
@@ -115,12 +121,30 @@ const canManage = async (user, clubId) => user.role === 'admin' || !!(await Club
 
 app.get('/api/health', (req, res) => res.status(mongoose.connection.readyState === 1 ? 200 : 503).json({ status: mongoose.connection.readyState === 1 ? 'ok' : 'database_unavailable', timestamp: new Date().toISOString() }));
 app.post('/api/auth/register', authLimit, wrap(async (req, res) => {
-  const fullName = clean(req.body.fullName, 100), email = clean(req.body.email, 254).toLowerCase();
-  const studentId = clean(req.body.studentId, 50), password = String(req.body.password || '');
-  if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !studentId || password.length < 8 || password.length > 128) return fail(res, 'Enter your name, valid email, student ID and password (8–128 characters).');
-  const user = await User.create({ fullName, email, studentId, passwordHash: await bcrypt.hash(password, 12), department: clean(req.body.department, 100), yearLevel: clean(req.body.yearLevel, 40), role: 'student', status: 'pending' });
-  res.cookie('haven_token', jwt.sign({ sub: String(user._id) }, process.env.JWT_SECRET, { expiresIn: '7d' }), cookieOpts);
-  res.status(201).json({ user: safe(user), message: 'Registration submitted. An administrator must approve your account.' });
+  const fullName=clean(req.body.fullName,100);
+  const email=clean(req.body.email,254).toLowerCase();
+  const studentId=clean(req.body.studentId,50);
+  const password=String(req.body.password||'');
+  const age=Number(req.body.age);
+  const address=clean(req.body.address,300);
+  const skills=clean(req.body.skills,400);
+  const talents=clean(req.body.talents,400);
+  const joinReason=clean(req.body.joinReason,1000);
+  if(fullName.length<2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !studentId || password.length<8 || password.length>128)
+    return fail(res,'Enter your name, valid email, student ID and password (8–128 characters).');
+  if(!Number.isInteger(age)||age<15||age>100)
+    return fail(res,'Enter a valid age between 15 and 100.');
+  if(address.length<5||skills.length<2||talents.length<2||joinReason.length<15)
+    return fail(res,'Please complete your address, skills, talents and reason for joining (at least 15 characters for your reason).');
+  const user=await User.create({
+    fullName,email,studentId,passwordHash:await bcrypt.hash(password,12),
+    department:clean(req.body.department,100),yearLevel:clean(req.body.yearLevel,40),
+    age,address,skills,talents,joinReason,
+    role:'student',status:'pending'
+  });
+  res.cookie('haven_token',jwt.sign({sub:String(user._id)},process.env.JWT_SECRET,{expiresIn:'7d'}),cookieOpts);
+  res.status(201).json({user:safe(user),message:'Registration submitted. An administrator must approve your account.'});
 }));
 app.post('/api/auth/login', authLimit, wrap(async (req, res) => {
   const email = clean(req.body.email, 254).toLowerCase();
@@ -146,6 +170,22 @@ app.put('/api/me/profile', auth, wrap(async (req, res) => {
   req.user.fullName = fullName;
   req.user.department = department;
   req.user.yearLevel = yearLevel;
+  // Student-owned profile details; role and approval status are never editable.
+  if(req.user.role==='student'){
+    const ageInput=String(req.body.age??'').trim();
+    const age=ageInput===''?null:Number(ageInput);
+    const address=clean(req.body.address,300);
+    const skills=clean(req.body.skills,400);
+    const talents=clean(req.body.talents,400);
+    const joinReason=clean(req.body.joinReason,1000);
+    if(age!==null&&(!Number.isInteger(age)||age<15||age>100))
+      return fail(res,'Enter a valid age between 15 and 100.');
+    req.user.age=age;
+    req.user.address=address;
+    req.user.skills=skills;
+    req.user.talents=talents;
+    req.user.joinReason=joinReason;
+  }
   await req.user.save();
   await audit(req.user._id,'profile_updated','User',req.user._id);
   res.json({user:safe(req.user)});

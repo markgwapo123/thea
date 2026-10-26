@@ -153,8 +153,16 @@
     if(cleanPath==='/me') return {user,staff:demo.staff.filter(s=>s.userId===user?._id).map(s=>({...s,clubId:clubAt(s.clubId)}))};
     if(cleanPath==='/auth/register'&&method==='POST'){
       if(!payload.fullName || !payload.email || !payload.studentId || String(payload.password||'').length<8)err('Please complete the form and use a password of at least 8 characters.');
+      const age=Number(payload.age);
+      if(!Number.isInteger(age)||age<15||age>100)err('Enter a valid age between 15 and 100.');
+      if(String(payload.address||'').trim().length<5||String(payload.skills||'').trim().length<2||
+         String(payload.talents||'').trim().length<2||String(payload.joinReason||'').trim().length<15)
+        err('Please complete your address, skills, talents and reason for joining.');
       if(demo.users.some(u=>u.email===payload.email || u.studentId===payload.studentId))err('Email or student ID already registered.');
-      const newUser={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:payload.studentId,department:payload.department,yearLevel:payload.yearLevel,role:'student',status:'pending',registrationNote:''};
+      const newUser={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:payload.studentId,
+        department:payload.department,yearLevel:payload.yearLevel,age,address:String(payload.address).trim(),
+        skills:String(payload.skills).trim(),talents:String(payload.talents).trim(),
+        joinReason:String(payload.joinReason).trim(),role:'student',status:'pending',registrationNote:''};
       demo.users.push(newUser);demo.currentUser=newUser._id;return saved({user:newUser});
     }
     if(cleanPath==='/auth/login'&&method==='POST'){
@@ -167,6 +175,13 @@
       if(!user||user.status!=='active')err('Administrator approval required.');
       if(String(payload.fullName||'').trim().length<2)err('Enter a valid name.');
       user.fullName=String(payload.fullName).trim();user.department=String(payload.department||'').trim();user.yearLevel=String(payload.yearLevel||'').trim();
+      if(user.role==='student'){
+        const ageValue=String(payload.age??'').trim();
+        const age=ageValue?Number(ageValue):null;
+        if(age!==null&&(!Number.isInteger(age)||age<15||age>100))err('Enter a valid age between 15 and 100.');
+        user.age=age;user.address=String(payload.address||'').trim();user.skills=String(payload.skills||'').trim();
+        user.talents=String(payload.talents||'').trim();user.joinReason=String(payload.joinReason||'').trim();
+      }
       return saved({user});
     }
     if(cleanPath==='/me/password'&&method==='PUT'){
@@ -581,14 +596,32 @@
   function profilePage(){
     if(!state.user||state.user.status!=='active')return denied();
     const u=state.user;
+    const info=u.role==='student'?`
+      <div><span>Age</span><strong>${u.age??'—'}</strong></div>
+      <div><span>Address</span><strong>${escapeHtml(u.address||'—')}</strong></div>
+      <div><span>Skills</span><strong>${escapeHtml(u.skills||'—')}</strong></div>
+      <div><span>Talents</span><strong>${escapeHtml(u.talents||'—')}</strong></div>
+      <div><span>Why I Joined</span><strong>${escapeHtml(u.joinReason||'—')}</strong></div>`:'';
     return topHeading('Account Settings','Update your profile and account security.')+
-      `<div class="profile-settings-grid"><div class="panel"><h3 class="panel-title">My Profile</h3><div class="profile-fields"><div><span>Name</span><strong>${escapeHtml(u.fullName)}</strong></div><div><span>Email</span><strong>${escapeHtml(u.email)}</strong></div><div><span>Student ID</span><strong>${escapeHtml(u.studentId||'—')}</strong></div><div><span>Department</span><strong>${escapeHtml(u.department||'—')}</strong></div><div><span>Year Level</span><strong>${escapeHtml(u.yearLevel||'—')}</strong></div><div><span>Status</span><strong>Approved</strong></div></div><button class="button secondary sm" data-action="edit-profile">Edit Profile</button></div><div class="panel"><h3 class="panel-title">Account Security</h3><p class="small muted">Your password is private. Updating profile information cannot change account approval or role.</p><button class="button secondary sm" data-action="change-password">Change Password</button></div></div>`;
+      `<div class="profile-settings-grid"><div class="panel"><h3 class="panel-title">My Profile</h3>
+        <div class="profile-fields">
+          <div><span>Name</span><strong>${escapeHtml(u.fullName)}</strong></div>
+          <div><span>Email</span><strong>${escapeHtml(u.email)}</strong></div>
+          <div><span>Student ID</span><strong>${escapeHtml(u.studentId||'—')}</strong></div>
+          <div><span>Department</span><strong>${escapeHtml(u.department||'—')}</strong></div>
+          <div><span>Year Level</span><strong>${escapeHtml(u.yearLevel||'—')}</strong></div>
+          ${info}
+          <div><span>Status</span><strong>Approved</strong></div>
+        </div><button class="button secondary sm" data-action="edit-profile">Edit Profile</button>
+      </div><div class="panel"><h3 class="panel-title">Account Security</h3>
+      <p class="small muted">Your password is private. Updating profile information cannot change account approval or role.</p>
+      <button class="button secondary sm" data-action="change-password">Change Password</button></div></div>`;
   }
   function adminRegistrationsPage(){
     if(!isAdmin())return denied();
     const pending=state.users.filter(u=>u.role==='student'&&u.status==='pending');
     const rejected=state.users.filter(u=>u.role==='student'&&u.status==='rejected');
-    const renderTable=users=>`<div class="table-wrap registration-requests-table"><table><thead><tr><th>Applicant</th><th>Student ID</th><th>Program</th><th>Status</th><th>Decision</th></tr></thead><tbody>${users.map(u=>`<tr><td><strong>${escapeHtml(u.fullName)}</strong><div class="small muted">${escapeHtml(u.email)}</div></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.department||'—')}</td><td>${status(u.status)}</td><td><div class="table-action registration-request-actions"><button class="button primary sm" data-action="approve-user" data-id="${id(u)}">Approve</button><button class="button danger sm" data-action="reject-user" data-id="${id(u)}">Reject</button></div></td></tr>`).join('')}</tbody></table></div>`;
+    const renderTable=users=>`<div class="table-wrap registration-requests-table"><table><thead><tr><th>Applicant</th><th>Student ID</th><th>Program</th><th>Status</th><th>Decision</th></tr></thead><tbody>${users.map(u=>`<tr><td><strong>${escapeHtml(u.fullName)}</strong><div class="small muted">${escapeHtml(u.email)}</div></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.department||'—')}</td><td>${status(u.status)}</td><td><div class="table-action registration-request-actions"><button type="button" class="button secondary sm" data-action="view-registration" data-id="${id(u)}">View Details</button><button class="button primary sm" data-action="approve-user" data-id="${id(u)}">Approve</button><button class="button danger sm" data-action="reject-user" data-id="${id(u)}">Reject</button></div></td></tr>`).join('')}</tbody></table></div>`;
     return topHeading('Registration Requests','Review applications before granting member dashboard access.')+
       `<div class="approval-count panel"><div class="eyebrow">AWAITING APPROVAL</div><h2>${pending.length} pending registrations</h2></div><div class="section-heading"><h2>Pending Requests</h2></div>`+
       (pending.length?renderTable(pending):empty('✓','No pending registrations','New registrations will show here.'))+
@@ -679,7 +712,10 @@
       const deleteAction=u.role==='student'
         ? `<button type="button" class="button danger sm" data-action="delete-user" data-id="${idValue}" aria-label="Delete student ${escapeHtml(u.fullName)} permanently">Delete User</button>`
         : '';
-      return `<tr><td><strong>${escapeHtml(u.fullName)}</strong></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Administrator':'Student'}</td><td>${status(u.status)}</td><td><div class="table-action user-management-actions">${statusAction||(!deleteAction?'—':'')}${deleteAction}</div></td></tr>`;
+      const detailsAction=u.role==='student'
+        ? `<button type="button" class="button secondary sm" data-action="view-registration" data-id="${idValue}">View Details</button>`
+        : '';
+      return `<tr><td><strong>${escapeHtml(u.fullName)}</strong></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Administrator':'Student'}</td><td>${status(u.status)}</td><td><div class="table-action user-management-actions">${detailsAction}${statusAction||(!deleteAction&&!detailsAction?'—':'')}${deleteAction}</div></td></tr>`;
     }).join('');
     return topHeading('User Management','Manage member accounts. Deleted student accounts and associated records cannot be recovered.',actions)+
       `<div class="table-wrap user-management-table"><table><thead><tr><th>Name</th><th>Student ID</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -735,8 +771,38 @@
   function openApply(cid){const c=clubOf(cid);if(!c)return;showModal(`Apply to ${c.name}`,`<div class="banner">Academic Year: ${escapeHtml(state.settings.academicYear)} · ${Math.max(0,c.capacity-c.memberCount)} slots available</div><br><div class="split-input">${field('fullName','Student Name','text',state.user.fullName,'disabled')}${field('studentId','Student ID','text',state.user.studentId,'disabled')}</div>${textarea('motivation','Why do you want to join this club?','','required minlength="15" maxlength="1000" placeholder="Share your motivation in a few sentences..."')}<p class="helper">Your application will be reviewed by the assigned club adviser. Duplicate applications for the same academic year are not allowed.</p>`,data=>mutation('POST','/applications',{clubId:cid,motivation:data.motivation},'Your application has been submitted!'),{submitLabel:'Submit Application'});}
   function openAuth(mode){
     state.approvalFeedback='';
-    const login=mode==='login';const content=`<img class="auth-logo" src="${brandLogo()}" alt="Community logo"><h3 class="auth-title">${login?'Welcome back':'Join the Community'}</h3><p class="auth-desc">${login?'Sign in to view your account approval status.':'Register for community access. Your account requires administrator approval before the dashboard is available.'}</p>${cfg.DEMO_MODE?'<div class="auth-mode-note">Preview only · No real accounts or student records are created.</div>':''}${!login?field('fullName','Full Name','text','','required minlength="2"')+`<div class="split-input">${field('studentId','School Student ID','text','','required')}${field('yearLevel','Year Level','text','','placeholder="2nd Year"')}</div>`+field('department','Department / Program','text','','placeholder="e.g. College of Education"'):''}${field('email','Email Address','email','','required autocomplete="email"')}${field('password','Password','password','','required minlength="8" autocomplete="'+(login?'current-password':'new-password')+'"')}<p class="helper auth-helper">${cfg.DEMO_MODE?'Preview mode: account creation is simulated. Use the demo role controls to explore without credentials.':'Passwords must contain 8 or more characters. Please use school-approved account details.'}</p><p style="text-align:center;font-size:12px">${login?'New to our community?':'Already a member?'} <button type="button" class="text-link" data-action="${login?'register':'login'}">${login?'Create an account':'Log in'}</button></p>`;
-    showModal('',content,async data=>{const endpoint=login?'/auth/login':'/auth/register';try{await api('POST',endpoint,data);closeModal();await fetchAll();nav(state.user?.status==='active'?'dashboard':'approval-status');toast(login?'Signed in.':'Registration submitted for admin review.');}catch(e){toast(e.message,true)}},{submitLabel:login?'Log in':'Create Account'});
+    const login=mode==='login';
+    const studentDetails=!login?
+      `<div class="registration-group-label">STUDENT INFORMATION</div>`+
+      field('fullName','Full Name','text','','required minlength="2" maxlength="100" autocomplete="name"')+
+      `<div class="split-input">${field('studentId','School Student ID','text','','required maxlength="50"')}${field('yearLevel','Year Level','text','','placeholder="e.g. 2nd Year" maxlength="40"')}</div>`+
+      field('department','Department / Program','text','','placeholder="e.g. College of Education" maxlength="100"')+
+      `<div class="split-input">${field('age','Age','number','','required min="15" max="100" step="1" inputmode="numeric"')}${field('address','Address','text','','required minlength="5" maxlength="300" autocomplete="street-address" placeholder="Barangay, City / Municipality"')}</div>`+
+      `<div class="registration-group-label">ABOUT YOU</div>`+
+      textarea('skills','Skills','','required minlength="2" maxlength="400" rows="2" placeholder="e.g. Communication, leadership, teamwork"')+
+      textarea('talents','Talents','','required minlength="2" maxlength="400" rows="2" placeholder="e.g. Singing, public speaking, art"')+
+      textarea('joinReason','Why did you join this organization?','','required minlength="15" maxlength="1000" rows="4" placeholder="Tell us what inspires you to join THE HAVEN..."')+
+      `<p class="registration-privacy-note">These registration details are reviewed by authorized administrators and saved to your profile.</p>`:'';
+    const content=`<img class="auth-logo" src="${brandLogo()}" alt="Community logo">
+      <h3 class="auth-title">${login?'Welcome back':'Join the Community'}</h3>
+      <p class="auth-desc">${login?'Sign in to view your account approval status.':'Complete your student profile to request access. Your account requires administrator approval.'}</p>
+      ${cfg.DEMO_MODE?'<div class="auth-mode-note">Preview only · No real accounts or student records are created.</div>':''}
+      ${studentDetails}
+      ${!login?'<div class="registration-group-label">ACCOUNT SECURITY</div>':''}
+      ${field('email','Email Address','email','','required maxlength="254" autocomplete="email"')}
+      ${field('password','Password','password','','required minlength="8" maxlength="128" autocomplete="'+(login?'current-password':'new-password')+'"')}
+      <p class="helper auth-helper">${cfg.DEMO_MODE?'Preview mode: account creation is simulated. Use the demo role controls to explore without credentials.':'Passwords must contain 8 or more characters. Please use school-approved account details.'}</p>
+      <p class="auth-switch">${login?'New to our community?':'Already a member?'} <button type="button" class="text-link" data-action="${login?'register':'login'}">${login?'Create an account':'Log in'}</button></p>`;
+    showModal('',content,async data=>{
+      const endpoint=login?'/auth/login':'/auth/register';
+      try{
+        await api('POST',endpoint,data);
+        closeModal();
+        await fetchAll();
+        nav(state.user?.status==='active'?'dashboard':'approval-status');
+        toast(login?'Signed in.':'Registration submitted for admin review.');
+      }catch(error){toast(error.message,true);}
+    },{submitLabel:login?'Log in':'Create Account'});
   }
   function editClub(cid){const c=cid?clubOf(cid):null;const name=c?'Edit Club':'Create New Club';const body=field('name','Club Name','text',c?.name||'','required maxlength="120"')+field('category','Category','text',c?.category||'','required')+field('tagline','Short Tagline','text',c?.tagline||'')+textarea('description','Club Description',c?.description||'','required')+`<div class="split-input">${field('capacity','Member Capacity','number',c?.capacity||50,`required min="${c?.memberCount||1}"`)}${field('meetingSchedule','Meeting Schedule','text',c?.meetingSchedule||'To be announced')}</div>`+choose('accent','Club Card Theme',['gold','rose','sage','blue'].map(x=>({value:x,label:x[0].toUpperCase()+x.slice(1)})),c?.accent||'gold')+(c?choose('status','Registration Status',['open','closed','archived'].map(x=>({value:x,label:x[0].toUpperCase()+x.slice(1)})),c.status):'');
     showModal(name,body,data=>mutation(c?'PATCH':'POST',c?`/clubs/${c._id}`:'/clubs',data,c?'Club updated.':'Club created.'),{wide:true,submitLabel:c?'Save Changes':'Create Club'});
@@ -757,16 +823,52 @@
       data=>mutation('POST','/staff',data,'Leadership assignment saved.'),{submitLabel:'Assign Position'});
   }
 
+  function registrationDetails(u){
+    const row=(label,value)=>`<div class="registration-detail-row"><dt>${label}</dt><dd>${escapeHtml(value??'—')}</dd></div>`;
+    return `<dl class="registration-detail-grid">
+      ${row('Full Name',u.fullName)}
+      ${row('Student ID',u.studentId||'—')}
+      ${row('Email Address',u.email)}
+      ${row('Age',u.age??'—')}
+      ${row('Address',u.address||'—')}
+      ${row('Department / Program',u.department||'—')}
+      ${row('Year Level',u.yearLevel||'—')}
+      ${row('Skills',u.skills||'—')}
+      ${row('Talents',u.talents||'—')}
+      ${row('Why did you join this organization?',u.joinReason||'—')}
+      ${row('Registration Status',u.status)}
+    </dl>`;
+  }
+  function viewRegistrationDetails(userId){
+    if(!isAdmin())return;
+    const user=state.users.find(row=>id(row)===userId && row.role==='student');
+    if(!user)return toast('Student registration is not available. Reload and try again.',true);
+    if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
+    document.body.classList.add('modal-open');
+    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop">
+      <div class="modal wide registration-review-modal" role="dialog" aria-modal="true" aria-labelledby="registration-review-title">
+        <div class="modal-header">
+          <h2 id="registration-review-title">Student Registration Details</h2>
+          <button type="button" class="close-modal" data-action="close-modal" aria-label="Close registration details">×</button>
+        </div>
+        <p class="registration-review-intro">Review this student's information before deciding on their registration.</p>
+        ${registrationDetails(user)}
+        <div class="registration-review-footer"><button type="button" class="button secondary" data-action="close-modal">Close</button></div>
+      </div>
+    </div>`;
+    $('#modal-root .close-modal')?.focus();
+  }
   function reviewRegistration(userId,decision){
     if(!isAdmin())return;
-    const u=state.users.find(row=>id(row)===userId);
+    const u=state.users.find(row=>id(row)===userId && row.role==='student');
     if(!u)return;
     const approving=decision==='approved';
-    const content=`<div class="banner"><strong>${escapeHtml(u.fullName)}</strong><p>${escapeHtml(u.email)} · ${escapeHtml(u.studentId||'No Student ID')}</p></div><p class="helper">${approving?'Approve this user to allow dashboard access.':'Rejected accounts cannot enter the dashboard.'}</p>`+
+    const content=`<p class="registration-review-intro">${approving?'Review the student information carefully before approving dashboard access.':'Review this registration and optionally explain why it was rejected.'}</p>`+
+      registrationDetails(u)+
       (approving?'':textarea('note','Reason (optional)','','maxlength="300"'));
     showModal(approving?'Approve User':'Reject User',content,data=>
       mutation('PATCH',`/users/${userId}/registration`,{decision,note:data.note||''},approving?'Account approved.':'Account rejected.'),
-      {submitLabel:approving?'Approve Account':'Reject Account'});
+      {submitLabel:approving?'Approve Account':'Reject Account',wide:true});
   }
   function createAdmin(){
     if(!isAdmin())return;
@@ -781,10 +883,17 @@
   function editProfile(){
     if(!state.user||state.user.status!=='active')return;
     const u=state.user;
+    const extra=u.role==='student'?
+      field('age','Age','number',u.age??'','min="15" max="100" step="1" inputmode="numeric"')+
+      textarea('address','Address',u.address||'','maxlength="300" rows="2"')+
+      textarea('skills','Skills',u.skills||'','maxlength="400" rows="2"')+
+      textarea('talents','Talents',u.talents||'','maxlength="400" rows="2"')+
+      textarea('joinReason','Why did you join this organization?',u.joinReason||'','maxlength="1000" rows="4"'):'';
     showModal('Edit My Profile',
       field('fullName','Full Name','text',u.fullName,'required minlength="2" maxlength="100"')+
       field('department','Department / Program','text',u.department||'','maxlength="100"')+
       field('yearLevel','Year Level','text',u.yearLevel||'','maxlength="40"')+
+      extra+
       '<p class="helper">Your email, role and approval status cannot be changed here.</p>',
       data=>mutation('PUT','/me/profile',data,'Profile updated.'));
   }
@@ -880,6 +989,7 @@
     if(type==='create-announcement'){createAnnouncement();return;}
     if(type==='assign-staff'){assignStaff();return;}
     if(type==='create-admin'){createAdmin();return;}
+    if(type==='view-registration'){viewRegistrationDetails(itemId);return;}
     if(type==='approve-user'||type==='reject-user'){reviewRegistration(itemId,type==='approve-user'?'approved':'rejected');return;}
     if(type==='remove-staff'){
       if(!isAdmin())return;
