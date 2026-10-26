@@ -1456,3 +1456,24 @@ h1,h2,h3,h4,h5,h6{line-height:1.3;letter-spacing:-.022em}
 .registration-requests-table th:last-child{
   min-width:175px;
 }
+
+
+/* User Management: never split the STUDENT ID heading or its values.
+   Reserve table width and scroll inside the table on narrow phones. */
+.user-management-table{
+  max-width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.user-management-table table{
+  width:100%;
+  min-width:940px;
+  table-layout:auto;
+}
+.user-management-table th:nth-child(2),
+.user-management-table td:nth-child(2){
+  min-width:148px;
+  white-space:nowrap;
+  overflow-wrap:normal;
+  word-break:normal;
+}
