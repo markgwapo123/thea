@@ -52,7 +52,7 @@ app.use(cookieParser());
 const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 25, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many attempts. Try again later.' } });
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const validId = id => mongoose.isValidObjectId(id);
-const safe = u => ({ _id: u._id, fullName: u.fullName, email: u.email, studentId: u.studentId || '', yearLevel: u.yearLevel, department: u.department, role: u.role, status: u.status, registrationNote: u.registrationNote || '' });
+const safe = u => ({ _id: u._id, fullName: u.fullName, email: u.email, studentId: u.studentId || '', yearLevel: u.yearLevel, department: u.department, age: u.age ?? null, address: u.address || '', skills: u.skills || '', talents: u.talents || '', joinReason: u.joinReason || '', role: u.role, status: u.status, registrationNote: u.registrationNote || '' });
 // For a single-origin app, Lax cookies avoid unnecessary third-party cookie blocking.
 // Set CROSS_SITE_COOKIES=true only when a separately hosted HTTPS frontend is approved.
 const cookieSameSite = process.env.CROSS_SITE_COOKIES === 'true' ? 'none' : 'lax';
@@ -118,8 +118,33 @@ app.post('/api/auth/register', authLimit, wrap(async (req, res) => {
   const fullName = clean(req.body.fullName, 100), email = clean(req.body.email, 254).toLowerCase();
   const studentId = clean(req.body.studentId, 50), password = String(req.body.password || '');
   if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !studentId || password.length < 8 || password.length > 128) return fail(res, 'Enter your name, valid email, student ID and password (8–128 characters).');
-  const user = await User.create({ fullName, email, studentId, passwordHash: await bcrypt.hash(password, 12), department: clean(req.body.department, 100), yearLevel: clean(req.body.yearLevel, 40), role: 'student', status: 'pending' });
+
+  // These personal details are required on new registrations only. Legacy
+  // accounts may still have empty values; they are never backfilled or reset.
+  const ageRaw = String(req.body.age ?? '').trim();
+  const age = Number(ageRaw);
+  if (!/^\d{1,3}$/.test(ageRaw) || !Number.isInteger(age) || age < 13 || age > 100)
+    return fail(res, 'Enter a valid age from 13 to 100.');
+  const validRegistrationText = (value, min, max) =>
+    typeof value === 'string' && value.trim().length >= min && value.trim().length <= max;
+  if (!validRegistrationText(req.body.address, 5, 200))
+    return fail(res, 'Enter your address (5–200 characters).');
+  if (!validRegistrationText(req.body.skills, 2, 500))
+    return fail(res, 'Describe your skills (2–500 characters).');
+  if (!validRegistrationText(req.body.talents, 2, 500))
+    return fail(res, 'Describe your talents (2–500 characters).');
+  if (!validRegistrationText(req.body.joinReason, 15, 1200))
+    return fail(res, 'Explain why you joined this organization (15–1200 characters).');
+
+  const user = await User.create({
+    fullName, email, studentId, passwordHash: await bcrypt.hash(password, 12),
+    department: clean(req.body.department, 100), yearLevel: clean(req.body.yearLevel, 40),
+    age, address: clean(req.body.address, 200), skills: clean(req.body.skills, 500),
+    talents: clean(req.body.talents, 500), joinReason: clean(req.body.joinReason, 1200),
+    role: 'student', status: 'pending'
+  });
   res.cookie('haven_token', jwt.sign({ sub: String(user._id) }, process.env.JWT_SECRET, { expiresIn: '7d' }), cookieOpts);
+  res.set('Cache-Control', 'private, no-store');
   res.status(201).json({ user: safe(user), message: 'Registration submitted. An administrator must approve your account.' });
 }));
 app.post('/api/auth/login', authLimit, wrap(async (req, res) => {
@@ -367,6 +392,7 @@ app.patch('/api/users/:id/registration',auth,onlyAdmin,wrap(async(req,res)=>{
 }));
 
 app.get('/api/users', auth, onlyAdmin, wrap(async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
   res.json({ users: (await User.find().sort({ createdAt: -1 }).limit(500)).map(safe) });
 }));
 app.patch('/api/users/:id', auth, onlyAdmin, wrap(async (req, res) => {
