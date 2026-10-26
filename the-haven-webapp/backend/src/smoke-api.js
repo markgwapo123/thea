@@ -87,7 +87,13 @@ try {
 
   const settings = await get('/api/settings');
   const settingBody = await settings.json();
-  check(settings.status === 200 && typeof settingBody.academicYear === 'string', 'Public settings API');
+  check(settings.status === 200 && typeof settingBody.academicYear === 'string' && typeof settingBody.branding?.name === 'string', 'Public settings and branding API');
+  const guestAnnouncements = await get('/api/announcements');
+  check(guestAnnouncements.status === 401, 'Guest cannot access community announcements');
+  const guestLeadership = await get('/api/leadership');
+  check(guestLeadership.status === 401, 'Guest cannot access leadership directory');
+  const blockedAdminCreate = await get('/api/admin/accounts', {method:'POST',headers:{'Content-Type':'application/json',Origin:base},body:'{}'});
+  check(blockedAdminCreate.status === 401, 'Guest cannot create admin accounts');
 
   const denied = await get('/api/users');
   check(denied.status === 401, 'Admin endpoint blocks guests');
@@ -116,6 +122,18 @@ try {
 
   const stats = await get('/api/stats', { headers: { Cookie: cookie } });
   check(stats.status === 200, 'Dashboard statistics endpoint');
+  const leadership = await get('/api/leadership', {headers:{Cookie:cookie}});
+  const roster = await leadership.json();
+  check(leadership.status === 200 && Array.isArray(roster.leaders), 'Administrator leadership directory');
+  const announcements = await get('/api/announcements', {headers:{Cookie:cookie}});
+  const bulletin = await announcements.json();
+  check(announcements.status === 200 && Array.isArray(bulletin.announcements), 'Administrator announcements view');
+  const assignments = await get('/api/staff', {headers:{Cookie:cookie}});
+  const rosterAdmin = await assignments.json();
+  check(assignments.status === 200 && Array.isArray(rosterAdmin.staff), 'Administrator officer/adviser assignments');
+  const allClubs = await get('/api/admin/clubs', {headers:{Cookie:cookie}});
+  const fullClubList = await allClubs.json();
+  check(allClubs.status === 200 && Array.isArray(fullClubList.clubs), 'Administrator has complete club access');
 
   console.log('THE HAVEN backend/API integration smoke test succeeded. No records were inserted, updated or deleted.');
   success = true;
