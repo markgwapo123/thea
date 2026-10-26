@@ -341,3 +341,20 @@ input:disabled{background:#f5f3ef;color:#777268}
 .landing-editor-group h3{margin:0 0 14px;color:#644b24;font-size:14px}
 .public-hero.hero-simple{min-height:330px;padding-top:44px;padding-bottom:52px}
 @media(max-width:640px){.feature-card.no-icon{padding:18px 19px}.public-hero.hero-simple{min-height:auto;padding:36px 18px 45px}}
+
+/* Admin-only school-wide membership list */
+.membership-pagination{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-top:18px;
+  padding:13px 0;
+}
+.pagination-actions{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.pagination-actions button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:640px){
+  .membership-pagination{flex-direction:column;align-items:stretch}
+  .pagination-actions{justify-content:space-between}
+}

@@ -87,6 +87,10 @@ const auth = wrap(async (req, res, next) => {
   next();
 });
 const onlyAdmin = (req, res, next) => req.user.role === 'admin' ? next() : fail(res, 'Administrator permission required.', 403);
+const onlyManager = wrap(async (req, res, next) => {
+  if (req.user.role === 'admin' || await ClubStaff.exists({ userId: req.user._id })) return next();
+  return fail(res, 'Club staff or administrator permission required.', 403);
+});
 const scopeIds = async user => user.role === 'admin' ? null : (await ClubStaff.find({ userId: user._id })).map(x => x.clubId);
 const canReview = async (user, clubId) => user.role === 'admin' || !!(await ClubStaff.exists({ userId: user._id, clubId, role: 'adviser' }));
 const canManage = async (user, clubId) => user.role === 'admin' || !!(await ClubStaff.exists({ userId: user._id, clubId }));
@@ -113,6 +117,11 @@ app.get('/api/me', auth, wrap(async (req, res) => res.json({ user: safe(req.user
 
 app.get('/api/clubs', wrap(async (req, res) => {
   const clubs = await Club.find({ status: { $ne: 'archived' } }).sort({ createdAt: 1 }).lean();
+  res.json({ clubs });
+}));
+// Administrators can manage even archived clubs; the public directory stays unchanged.
+app.get('/api/admin/clubs', auth, onlyAdmin, wrap(async (req, res) => {
+  const clubs = await Club.find().sort({ createdAt: 1 }).lean();
   res.json({ clubs });
 }));
 app.post('/api/clubs', auth, onlyAdmin, wrap(async (req, res) => {
@@ -148,6 +157,7 @@ app.get('/api/applications', auth, wrap(async (req, res) => {
   if (req.query.mine === '1') filter.studentId = req.user._id;
   else if (req.user.role !== 'admin') {
     const scopes = (await ClubStaff.find({ userId: req.user._id })).map(x => x.clubId);
+    if (!scopes.length) return fail(res, 'Club staff or administrator permission required to view all applications.', 403);
     filter.clubId = { $in: scopes };
   }
   const applications = await Application.find(filter).populate('studentId', 'fullName email studentId department yearLevel').populate('clubId', 'name category capacity memberCount').sort({ createdAt: -1 }).lean();
@@ -209,14 +219,26 @@ app.patch('/api/applications/:id/review', auth, wrap(async (req, res) => {
 
 app.get('/api/memberships', auth, wrap(async (req, res) => {
   let filter;
-  if (req.query.clubId) {
+  if (req.query.all === '1') {
+    if (req.user.role !== 'admin') return fail(res, 'Administrator permission required to view all memberships.', 403);
+    if (req.query.clubId) return fail(res, 'Choose all memberships or one club, not both.');
+    filter = {};
+  } else if (req.query.clubId) {
     if (!validId(req.query.clubId) || !(await canManage(req.user, req.query.clubId))) return fail(res, 'Not authorized for club members.', 403);
     filter = { clubId: req.query.clubId };
   } else filter = { studentId: req.user._id };
-  const memberships = await Membership.find(filter).populate('studentId', 'fullName studentId department yearLevel').populate('clubId', 'name category').sort({ joinedAt: -1 });
+  const page = Number(req.query.page || 1);
+  if (req.query.all === '1' && (!Number.isSafeInteger(page) || page < 1 || page > 100000)) return fail(res, 'Invalid membership page.');
+  const pageSize = 100;
+  const query = Membership.find(filter).populate('studentId', 'fullName studentId department yearLevel').populate('clubId', 'name category').sort({ joinedAt: -1 });
+  if (req.query.all === '1') {
+    const [memberships, total] = await Promise.all([query.skip((page - 1) * pageSize).limit(pageSize), Membership.countDocuments(filter)]);
+    return res.json({ memberships, pagination: { page, pageSize, total, pages: Math.max(1, Math.ceil(total / pageSize)) } });
+  }
+  const memberships = await query;
   res.json({ memberships });
 }));
-app.get('/api/staff', auth, wrap(async (req, res) => {
+app.get('/api/staff', auth, onlyManager, wrap(async (req, res) => {
   const filter = req.user.role === 'admin' ? {} : { userId: req.user._id };
   const staff = await ClubStaff.find(filter).populate('userId', 'fullName email').populate('clubId', 'name');
   res.json({ staff });
@@ -266,7 +288,7 @@ app.patch('/api/users/:id', auth, onlyAdmin, wrap(async (req, res) => {
   await audit(req.user._id, 'user_status_changed', 'User', user._id, status);
   res.json({ user: safe(user) });
 }));
-app.get('/api/stats', auth, wrap(async (req, res) => {
+app.get('/api/stats', auth, onlyManager, wrap(async (req, res) => {
   const scopes = await scopeIds(req.user);
   const clubFilter = scopes === null ? {} : { _id: { $in: scopes } };
   const appFilter = scopes === null ? {} : { clubId: { $in: scopes } };
