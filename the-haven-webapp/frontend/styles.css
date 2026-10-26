@@ -785,3 +785,102 @@ input:disabled{background:#f5f3ef;color:#777268}
   .public-hero.hero-simple .hero-actions .button{font-size:13px}
   .public-hero.hero-simple .public-art{min-height:200px}
 }
+
+
+/* Splash screen: both decorative circles share the logo's exact center.
+   Keep rings inside the emblem instead of absolutely positioning them
+   relative to the entire screen (which offsets their center on phones). */
+.splash{
+  width:100%;
+  min-height:100dvh;
+  padding:24px 16px;
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+.splash::before,.splash::after{content:none}
+.splash-emblem{
+  position:relative;
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:min(75vw,310px);
+  max-width:100%;
+  aspect-ratio:1;
+  isolation:isolate;
+}
+.splash-emblem .splash-glow,
+.splash-emblem .splash-ring{
+  position:absolute;
+  top:50%;
+  left:50%;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+.splash-emblem .splash-glow{
+  width:76%;
+  height:76%;
+  background:#e6d2a463;
+  filter:blur(38px);
+  z-index:-1;
+}
+.splash-emblem .splash-ring{
+  box-sizing:border-box;
+  border:1px solid rgba(174,132,47,.18);
+  aspect-ratio:1;
+  z-index:0;
+}
+.splash-ring-outer{width:100%}
+.splash-ring-inner{width:78%}
+.splash-emblem .splash-logo{
+  position:relative;
+  display:block;
+  flex:none;
+  width:67%;
+  max-width:196px;
+  height:auto;
+  aspect-ratio:1;
+  object-fit:contain;
+  margin:0;
+  z-index:1;
+  transform-origin:center center;
+}
+.splash-name{
+  max-width:100%;
+  margin-top:10px;
+  overflow-wrap:break-word;
+  text-align:center;
+}
+.splash-subtitle{
+  max-width:100%;
+  line-height:1.5;
+  text-align:center;
+  overflow-wrap:break-word;
+}
+.splash-dots{
+  align-items:center;
+  justify-content:center;
+  margin-top:24px;
+}
+@media(max-width:640px){
+  .splash-emblem{width:min(78vw,300px)}
+  .splash-emblem .splash-logo{width:67%}
+  .splash-name{
+    margin-top:12px;
+    font-size:clamp(27px,7.2vw,38px);
+    letter-spacing:.08em;
+  }
+  .splash-subtitle{
+    font-size:clamp(8px,2.1vw,10px);
+    letter-spacing:.18em;
+  }
+}
+@media(max-height:550px){
+  .splash-emblem{width:min(40vh,220px)}
+  .splash-name{margin-top:5px}
+  .splash-dots{margin-top:13px}
+}
