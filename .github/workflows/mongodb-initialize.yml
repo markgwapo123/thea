@@ -1,0 +1,50 @@
+name: THE HAVEN - Initialize Existing MongoDB Database
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  initialize-the-haven-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: the-haven-webapp/backend
+    steps:
+      - name: Get THE HAVEN source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify private MongoDB secret exists
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          if [ -z "$MONGODB_URI" ]; then
+            echo "::error::Missing MONGODB_URI. Set it in GitHub Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate backend scripts
+        run: npm run check
+
+      - name: Initialize THE HAVEN collections and indexes (no dummy data)
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: the_haven_db
+        run: npm run db:init
+
+      - name: Verify connectivity after initialization
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: the_haven_db
+        run: npm run db:check
