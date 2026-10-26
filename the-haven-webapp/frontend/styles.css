@@ -1008,3 +1008,71 @@ input:disabled{background:#f5f3ef;color:#777268}
   .user-management-actions{width:150px;min-width:150px;gap:8px}
   .user-management-actions .button{min-height:46px;padding:10px 9px}
 }
+
+
+/* Shared asynchronous activity indicator — API calls, login, registration,
+   approvals, deletions, page refreshes, and all modal submissions. */
+.haven-loading[hidden]{display:none!important}
+.haven-loading{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  background:rgba(249,247,242,.75);
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
+  pointer-events:auto;
+}
+.haven-loading-card{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:15px;
+  width:min(100%,245px);
+  min-height:126px;
+  padding:24px;
+  box-sizing:border-box;
+  text-align:center;
+  font-size:14px;
+  line-height:1.45;
+  font-weight:700;
+  color:#705526;
+  background:#fffdf9;
+  border:1px solid #e5d8c0;
+  border-radius:20px;
+  box-shadow:0 20px 70px rgba(69,50,23,.14);
+}
+.haven-loading-spinner,.haven-inline-spinner{
+  box-sizing:border-box;
+  display:inline-block;
+  flex:none;
+  width:34px;
+  height:34px;
+  border:3px solid #e9dfcd;
+  border-top-color:#a17b34;
+  border-radius:50%;
+  animation:havenLoadingSpin .8s linear infinite;
+}
+.haven-inline-spinner{
+  width:16px;
+  height:16px;
+  border-width:2px;
+  border-color:currentColor;
+  border-top-color:transparent;
+  vertical-align:middle;
+}
+.modal-footer button[aria-busy="true"]{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  cursor:progress;
+}
+@keyframes havenLoadingSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){
+  .haven-loading-spinner,.haven-inline-spinner{animation:none}
+}
