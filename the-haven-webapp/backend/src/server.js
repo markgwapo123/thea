@@ -339,7 +339,7 @@ app.patch('/api/notifications/:id/read', auth, wrap(async (req, res) => {
 app.post('/api/admin/accounts',auth,onlyAdmin,authLimit,wrap(async(req,res)=>{
   const fullName=clean(req.body.fullName,100),email=clean(req.body.email,254).toLowerCase();
   const password=String(req.body.password||'');
-  if(fullName.length<2||!(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))||password.length<12||password.length>128)
+  if(fullName.length<2||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))||password.length<12||password.length>128)
     return fail(res,'Enter admin name, email and password of 12–128 characters.');
   const user=await User.create({fullName,email,passwordHash:await bcrypt.hash(password,12),role:'admin',status:'active'});
   await audit(req.user._id,'administrator_created','User',user._id);
