@@ -143,7 +143,7 @@
         }
       }
       render();
-    } catch(err){$('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load THE HAVEN</h2><p>${escapeHtml(err.message)}</p><p>For preview, set <code>DEMO_MODE: true</code> in <code>frontend/config.js</code>.</p><button class="button primary" onclick="location.reload()">Retry</button></div>`;}
+    } catch(err){$('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load THE HAVEN</h2><p>${escapeHtml(err.message)}</p><p>For preview, set <code>DEMO_MODE: true</code> in <code>frontend/config.js</code>.</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;}
   }
   function nav(route){state.route=route;state.sidebar=false;const hash='#/'+route;if(location.hash!==hash)location.hash=hash;render();window.scrollTo({top:0,behavior:'instant'});}
   function toast(message,isError=false){const root=$('#toast-region');const el=document.createElement('div');el.className='toast'+(isError?' error':'');el.textContent=message;root.append(el);setTimeout(()=>el.remove(),3700);}
@@ -251,6 +251,7 @@
   async function action(event){const node=event.target.closest('[data-action]');if(!node)return;const type=node.dataset.action, itemId=node.dataset.id;
     if(type==='modal-backdrop'&&event.target!==node)return;
     if(type==='close-modal'||type==='modal-backdrop'){closeModal();return;}
+    if(type==='retry-loading'){await fetchAll();return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
     if(type==='sidebar-toggle'){state.sidebar=!state.sidebar;render();return;}
