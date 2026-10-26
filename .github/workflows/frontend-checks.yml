@@ -43,6 +43,25 @@ jobs:
           ), 'Proxy must forward /api requests to THE HAVEN Render backend');
           console.log('Production config and Vercel external API rewrite valid.');
           NODE
+      - name: Guard mobile layout breakpoints and overflow behavior
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const css = fs.readFileSync('the-haven-webapp/frontend/styles.css', 'utf8');
+          const html = fs.readFileSync('the-haven-webapp/frontend/index.html', 'utf8');
+          assert.match(html, /name="viewport"[^>]*width=device-width/, 'Mobile viewport meta required');
+          assert.match(css, /@media\(max-width:900px\)/, 'Small-tablet sidebar collapse required');
+          assert.match(css, /\.sidebar\.open\s*\{transform:translateX\(0\)\}/, 'Sidebar should reopen');
+          assert.match(css, /\.overlay\.open\s*\{/, 'Off-canvas navigation requires backdrop');
+          assert.match(css, /\.topbar>div:first-child\s*\{flex:1 1 auto;min-width:0\}/, 'Top bar must shrink on small screens');
+          assert.match(css, /\.public-nav\s*\{\s*display:grid;\s*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/, 'Phone navigation must use non-overlapping columns');
+          assert.match(css, /\.table-wrap\s*\{[\s\S]*?overflow-x:auto/, 'Tables must scroll within their wrapper');
+          assert.match(css, /\.modal-footer\s*\{[\s\S]*?bottom:0/, 'Modal buttons must stay visible');
+          assert.match(css, /@media\(max-width:359px\)/, 'Narrow phones need a dedicated breakpoint');
+          assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length,'CSS block braces must balance');
+          console.log('THE HAVEN phone/tablet responsive layout checks passed.');
+          NODE
       - name: Verify essential UI elements
         run: |
           node --input-type=module - <<'NODE'
