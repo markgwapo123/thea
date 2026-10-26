@@ -29,7 +29,7 @@
   };
   const landingContent = () => state.settings?.landingPage || DEFAULT_LANDING;
   const renderLandingCard = item => `<div class="feature-card no-icon"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p></div>`;
-  const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
+  const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], allMemberships:[], stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
 
   const demoSeed = () => ({
     currentUser:'u-student', academicYear:'2026–2027', landingPage:DEFAULT_LANDING, seq:20,
@@ -83,6 +83,10 @@
     }
     if(cleanPath==='/auth/logout'&&method==='POST'){demo.currentUser='';return saved({ok:true});}
     if(cleanPath==='/clubs'&&method==='GET')return {clubs:demo.clubs.filter(c=>c.status!=='archived')};
+    if(cleanPath==='/admin/clubs'&&method==='GET'){
+      if(!admin)err('Administrator permission required.');
+      return {clubs:demo.clubs};
+    }
     if(cleanPath==='/clubs'&&method==='POST'){
       if(!admin)err('Administrator access required.');const c={...payload,_id:newId('c'),capacity:Number(payload.capacity),memberCount:0,status:'open'};demo.clubs.push(c);return saved({club:c});
     }
@@ -90,6 +94,7 @@
       if(!admin)err('Administrator access required.');const c=clubAt(parts[1]);if(!c)err('Club not found.');Object.assign(c,payload);c.capacity=Number(c.capacity);return saved({club:c});
     }
     if(cleanPath==='/applications'&&method==='GET'){
+      if(query.get('mine')!=='1'&&!admin&&!demo.staff.some(s=>s.userId===user?._id))err('Club staff or administrator permission required.');
       const list=demo.applications.filter(a=>query.get('mine')==='1'?a.studentId===user?._id:admin||isStaff(a.clubId));
       return {applications:list.map(a=>({...a,clubId:clubAt(a.clubId),studentId:userAt(a.studentId)})).reverse()};
     }
@@ -108,11 +113,14 @@
       const a=demo.applications.find(x=>x._id===parts[1]&&x.studentId===user?._id);if(!a||!['pending','waitlisted'].includes(a.status))err('Cannot cancel this application.');a.status='cancelled';return saved({application:a});
     }
     if(cleanPath==='/memberships'&&method==='GET'){
-      const cid=query.get('clubId');if(cid && !isStaff(cid))err('Not authorized.');
-      const rows=demo.memberships.filter(m=>cid?m.clubId===cid:m.studentId===user?._id);
+      const cid=query.get('clubId'), all=query.get('all')==='1';
+      if(all&&!admin)err('Administrator permission required to view all memberships.');
+      if(all&&cid)err('Choose all memberships or one club.');
+      if(cid&&!isStaff(cid))err('Not authorized.');
+      const rows=demo.memberships.filter(m=>all||cid?all||m.clubId===cid:m.studentId===user?._id);
       return {memberships:rows.map(m=>({...m,clubId:clubAt(m.clubId),studentId:userAt(m.studentId)})).reverse()};
     }
-    if(cleanPath==='/staff'&&method==='GET')return {staff:demo.staff.filter(s=>admin||s.userId===user?._id).map(s=>({...s,clubId:clubAt(s.clubId),userId:userAt(s.userId)}))};
+    if(cleanPath==='/staff'&&method==='GET'){if(!admin&&!demo.staff.some(s=>s.userId===user?._id))err('Club staff or administrator permission required.');return {staff:demo.staff.filter(s=>admin||s.userId===user?._id).map(s=>({...s,clubId:clubAt(s.clubId),userId:userAt(s.userId)}))};}
     if(cleanPath==='/staff'&&method==='POST'){
       if(!admin)err('Administrator access required.');if(!demo.staff.some(s=>s.userId===payload.userId&&s.clubId===payload.clubId&&s.role===payload.role))demo.staff.push({_id:newId('s'),...payload});return saved({ok:true});
     }
@@ -125,6 +133,7 @@
     if(cleanPath==='/users'&&method==='GET'){if(!admin)err('Administrator only.');return {users:demo.users};}
     if(parts[0]==='users'&&parts[1]&&method==='PATCH'){if(!admin)err('Administrator only.');const u=userAt(parts[1]);if(!u)err('User not found.');u.status=payload.status;return saved({user:u});}
     if(cleanPath==='/stats'&&method==='GET'){
+      if(!admin&&!demo.staff.some(s=>s.userId===user?._id))err('Club staff or administrator permission required.');
       const apps=demo.applications.filter(a=>admin||isStaff(a.clubId));
       return {stats:{clubs:demo.clubs.filter(c=>admin||isStaff(c._id)).length,applications:apps.length,memberships:demo.memberships.filter(m=>admin||isStaff(m.clubId)).length,students:admin?demo.users.filter(u=>u.role==='student').length:null,pending:apps.filter(a=>['pending','under_review'].includes(a.status)).length}};
     }
@@ -153,19 +162,35 @@
       state.clubs=c.clubs;state.announcements=a.announcements;state.settings=s;
       if(cfg.DEMO_MODE) { const me=await get('/me');state.user=me.user||null;state.staff=me.staff||[]; }
       else {try{const me=await get('/me');state.user=me.user;state.staff=me.staff||[];}catch{state.user=null;state.staff=[];}}
-      state.applications=[];state.memberships=[];state.notifications=[];state.users=[];state.stats={};
+      state.applications=[];state.memberships=[];state.notifications=[];state.users=[];state.staffApplications=[];state.allMemberships=[];state.stats={};
       if(state.user){
         const call = async (path,k,v) => {try{state[k]=(await get(path))[v];}catch{state[k]=k==='stats'?{}:[];}};
         await Promise.all([call('/applications?mine=1','applications','applications'),call('/memberships','memberships','memberships'),call('/notifications','notifications','notifications')]);
         if(state.user.role==='admin' || state.staff.length){
           await Promise.all([call('/applications','staffApplications','applications'),call('/stats','stats','stats')]);
-          if(state.user.role==='admin')await call('/users','users','users');
+          if(state.user.role==='admin'){
+            await Promise.all([call('/users','users','users'),call('/memberships?all=1','allMemberships','memberships')]);
+            // Archived clubs remain visible to admins, but not in the public directory.
+            try{const allClubs=await get('/admin/clubs');state.clubs=allClubs.clubs;}catch{/* Retain public list if unavailable. */}
+          }
         }
       }
       render();
     } catch(err){$('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load THE HAVEN</h2><p>${escapeHtml(err.message)}</p><p>For preview, set <code>DEMO_MODE: true</code> in <code>frontend/config.js</code>.</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;}
   }
-  function nav(route){state.route=route;state.sidebar=false;const hash='#/'+route;if(location.hash!==hash)location.hash=hash;render();window.scrollTo({top:0,behavior:'instant'});}
+  function canAccessRoute(route){
+    if(['home','clubs'].includes(route))return true;
+    if(!state.user)return false;
+    if(['staff-applications','staff-members'].includes(route))return isAdmin()||hasStaff();
+    if(['admin-clubs','admin-users','admin-members','reports','settings'].includes(route))return isAdmin();
+    return ['dashboard','applications','memberships','announcements','notifications'].includes(route);
+  }
+  function nav(route){
+    if(!canAccessRoute(route)){toast('You do not have permission to access this page.',true);route=state.user?'dashboard':'home';}
+    state.route=route;state.sidebar=false;
+    const hash='#/'+route;if(location.hash!==hash)location.hash=hash;
+    render();window.scrollTo({top:0,behavior:'instant'});
+  }
   function toast(message,isError=false){const root=$('#toast-region');const el=document.createElement('div');el.className='toast'+(isError?' error':'');el.setAttribute('role',isError?'alert':'status');el.textContent=message;root.append(el);setTimeout(()=>el.remove(),4100);}
   async function mutation(method,path,body,success='Changes saved.'){
     if(state.busy)return false;
@@ -195,7 +220,7 @@
   const topHeading=(title,subtitle,cta='')=>`<div class="page-heading"><div><div class="eyebrow">FELLOWSHIP BAPTIST COLLEGE · THE HAVEN</div><h1>${title}</h1><p>${subtitle}</p></div>${cta}</div>`;
   const empty=(sym,title,description)=>`<div class="empty"><div class="empty-icon">${sym}</div><strong>${title}</strong><p>${description}</p></div>`;
   const card = (c,i=0) => `<article class="club-card"><div class="club-art ${escapeHtml(c.accent||'gold')}"><span class="top-tag ${c.status==='open'?'':'closed'}">${escapeHtml(c.status==='open'?'Registration Open':'Registration Closed')}</span><div class="club-art-symbol">${alphabet[i%alphabet.length]}</div></div><div class="club-body"><div class="club-category">${escapeHtml(c.category)}</div><h3 class="club-title">${escapeHtml(c.name)}</h3><p class="club-desc">${escapeHtml(c.tagline||c.description).slice(0,112)}</p><div class="club-capacity"><div class="club-capacity-top"><span>Club capacity</span><span>${Math.max(0,c.memberCount)} / ${c.capacity} members</span></div><div class="club-progress" role="progressbar" aria-label="${escapeHtml(c.name)} membership capacity" aria-valuemin="0" aria-valuemax="${c.capacity}" aria-valuenow="${Math.min(c.capacity,Math.max(0,c.memberCount))}"><div class="club-progress-fill" style="width:${Math.min(100,Math.max(0,Math.round(c.memberCount/Math.max(1,c.capacity)*100)))}%"></div></div></div><div class="club-footer"><span class="tiny">${Math.max(0,c.capacity-c.memberCount)} slots available</span><button class="button secondary sm" data-action="club" data-id="${id(c)}" aria-label="View details for ${escapeHtml(c.name)}">Details →</button></div></div></article>`;
-  const categoryFilters=()=>['All',...new Set(state.clubs.map(c=>c.category))];
+  const categoryFilters=()=>['All',...new Set(state.clubs.filter(c=>c.status!=='archived').map(c=>c.category))];
 
   function publicSite(){
     const onClubs=state.route==='clubs';
@@ -206,11 +231,11 @@
   function sideNav(){
     const common=[['dashboard','⌂','Dashboard'],['clubs','◇','Explore Clubs'],['applications','▤','My Applications'],['memberships','♧','My Clubs'],['announcements','◌','Announcements'],['notifications','♧','Notifications']];
     const staff=[['staff-applications','▣','Application Review'],['staff-members','♙','Club Members']];
-    const admins=[['admin-clubs','▦','Manage Clubs'],['admin-users','♧','User Management'],['reports','▥','Reports'],['settings','⚙','Settings']];
+    const admins=[['admin-clubs','▦','Manage Clubs'],['admin-members','♙','All Memberships'],['admin-users','♧','User Management'],['reports','▥','Reports'],['settings','⚙','Settings']];
     const section=items=>`<div class="nav-list">${items.map(([r,ic,t])=>`<button class="nav-link ${state.route===r?'active':''}" data-action="navigate" data-route="${r}" ${state.route===r?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${ic}</span><span>${t}</span>${r==='notifications'&&unread()?`<span class="badge" style="margin-left:auto;padding:3px 6px">${unread()}</span>`:''}</button>`).join('')}</div>`;
     return `<aside class="sidebar ${state.sidebar?'open':''}" aria-label="Main navigation"><a href="#/home" class="side-brand"><img src="${LOGO}" alt="Logo"><span><div class="brand-title">THE HAVEN</div><div class="brand-sub">PEER FACILITATORS' COMMUNITY</div></span></a><div class="nav-section-label">WORKSPACE</div>${section(common)}${hasStaff()||isAdmin()?`<div class="nav-section-label">CLUB MANAGEMENT</div>${section(staff)}`:''}${isAdmin()?`<div class="nav-section-label">ADMINISTRATION</div>${section(admins)}`:''}<div class="side-bottom"><div class="mini-profile"><span class="avatar">${abbr(state.user.fullName)}</span><span><div class="profile-name">${escapeHtml(state.user.fullName)}</div><div class="profile-role">${isAdmin()?'System Administrator':hasStaff()?state.staff.map(s=>s.role).join(' / '):'Student Member'}</div></span></div><button class="side-exit" data-action="logout">↪ &nbsp; Sign out</button></div></aside>`;
   }
-  const titles={dashboard:'Overview',clubs:'Explore Clubs',applications:'My Applications',memberships:'My Clubs',announcements:'Announcements',notifications:'Notifications','staff-applications':'Application Review','staff-members':'Club Members','admin-clubs':'Manage Clubs','admin-users':'User Management',reports:'Reports & Analytics',settings:'System Settings'};
+  const titles={dashboard:'Overview',clubs:'Explore Clubs',applications:'My Applications',memberships:'My Clubs',announcements:'Announcements',notifications:'Notifications','staff-applications':'Application Review','staff-members':'Club Members','admin-clubs':'Manage Clubs','admin-members':'All Memberships','admin-users':'User Management',reports:'Reports & Analytics',settings:'System Settings'};
   function shell(){
     const demoBar=cfg.DEMO_MODE?`<div class="demo-bar"><span><b>✦ Preview mode</b> · Data is stored in this browser only; no real accounts.</span><div class="demo-actions">${[['u-student','Student'],['u-adviser','Adviser'],['u-officer','Officer'],['u-admin','Admin']].map(([u,t])=>`<button data-action="demo-role" data-id="${u}" class="${demo.currentUser===u?'selected':''}">${t}</button>`).join('')}<button data-action="reset-demo">Reset</button></div></div>`:'';
     return `<div class="app-shell">${sideNav()}<div class="overlay ${state.sidebar?'open':''}" data-action="sidebar-toggle"></div><main class="main" id="main-content"><header class="topbar"><div style="display:flex;gap:12px;align-items:center"><button class="mobile-menu-btn" data-action="sidebar-toggle" aria-label="${state.sidebar?'Close':'Open'} navigation" aria-expanded="${state.sidebar}">☰</button><div><div class="top-title">${escapeHtml(titles[state.route]||'THE HAVEN')}</div><div class="top-subtitle">${escapeHtml(state.settings.academicYear)} · Fellowship Baptist College</div></div></div><div class="top-actions"><button class="icon-button" data-action="navigate" data-route="notifications" title="Notifications" aria-label="Notifications">♧ ${unread()?'<span class="notif-dot"></span>':''}</button><span class="avatar sm">${abbr(state.user.fullName)}</span></div></header><div class="content">${demoBar}${view()}</div></main></div>`;
@@ -228,7 +253,7 @@
     const nextStep=managed?'':`<section class="next-step" aria-label="Suggested next step"><div class="next-step-icon" aria-hidden="true">✦</div><div><div class="eyebrow">YOUR NEXT STEP</div><h2>${pending?'Keep an eye on your applications':mine.length?'Discover what comes next':'Find your people, start your journey'}</h2><p>${pending?'Your application status will be updated here after review.':'Explore the communities available and choose one that interests you.'}</p></div><button class="button secondary sm" data-action="${pending?'navigate':'go-clubs'}" ${pending?'data-route="applications"':''}>${pending?'Track Status':'Explore Clubs'} →</button></section>`;
     return `<div class="welcome"><div><div class="eyebrow">✧ &nbsp; YOUR COMMUNITY, YOUR SPACE</div><h1>Welcome ${escapeHtml(studentName())},<br>we're glad you're here.</h1><p>${managed?'Guide your community, review applications, and bring members together.':'Find your place, make meaningful connections, and grow with THE HAVEN.'}</p><button class="button primary" data-action="${managed?'go-review':'go-clubs'}">${managed?'Review Applications':'Explore Communities'} &nbsp;→</button></div><img class="welcome-image" src="${LOGO}" alt="THE HAVEN"></div><div class="stat-grid">${metrics.map(x=>statCard(...x)).join('')}</div>${nextStep}<div class="grid-main" style="margin-top:22px"><section><div class="section-heading"><div><h2>${managed?'Recent Applications':'Discover communities'}</h2><p>${managed?'Applications that may need your attention':'Clubs you might love'}</p></div><button class="text-link" data-action="${managed?'go-review':'go-clubs'}">View all →</button></div>${managed?`${applicationTable(staffApps().slice(0,5),true)}`:`<div class="club-grid" style="grid-template-columns:repeat(auto-fit,minmax(205px,1fr))">${state.clubs.slice(0,2).map(card).join('')}</div>`}</section><section><div class="section-heading"><h2>Community updates</h2><button class="text-link" data-action="navigate" data-route="announcements">View all →</button></div><div class="panel activity-list">${state.announcements.slice(0,4).map(a=>`<div class="activity-item"><span class="activity-marker">✦</span><div><div class="activity-title">${escapeHtml(a.title)}</div><div class="activity-text">${escapeHtml(a.body).slice(0,126)}</div><div class="activity-time">${ago(a.createdAt)}</div></div></div>`).join('')||empty('◌','No updates yet','Announcements will appear here.')}</div></section></div>`;
   }
-  function filterClubs(){return state.clubs.filter(c=>(state.category==='All'||c.category===state.category)&&(c.name+' '+c.description+' '+c.category).toLowerCase().includes(state.search.toLowerCase()));}
+  function filterClubs(){return state.clubs.filter(c=>c.status!=='archived'&&(state.category==='All'||c.category===state.category)&&(c.name+' '+c.description+' '+c.category).toLowerCase().includes(state.search.toLowerCase()));}
   function searchAndFilters(){return `<div class="searchbar"><div class="searchwrap"><label for="club-search" class="sr-only">Search available clubs</label><span class="search-symbol" aria-hidden="true">⌕</span><input id="club-search" class="input" type="search" placeholder="Search clubs, interests, activities..." value="${escapeHtml(state.search)}" aria-label="Search clubs"></div></div><div class="filters">${categoryFilters().map(c=>`<button class="filter ${state.category===c?'active':''}" aria-pressed="${state.category===c}" data-action="category" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('')}</div><p class="results-summary" id="club-result-count" role="status">${filterClubs().length} ${filterClubs().length===1?'community':'communities'} found</p>`;}
   function clubsPage(){return `${topHeading('Find your community','Explore clubs and discover opportunities to connect, grow and serve.')} ${searchAndFilters()}<div id="club-results" class="club-grid">${filterClubs().map(card).join('')||empty('⌕','No clubs found','Try a different search or category.')}</div>`;}
   function applicationTable(apps,manage=false){
@@ -242,6 +267,14 @@
   function staffApplicationsPage(){if(!hasStaff()&&!isAdmin())return denied();return topHeading('Application Review','Review club applications, make decisions, and welcome new members.')+applicationTable(staffApps(),true);}
   function membersPage(){if(!hasStaff()&&!isAdmin())return denied();const clubs=state.clubs.filter(c=>isStaffClub(c._id));return topHeading('Club Members','Manage and view approved members in your assigned communities.')+`<div class="cards-two">${clubs.map(c=>`<div class="panel"><div class="eyebrow">${escapeHtml(c.category)}</div><h3>${escapeHtml(c.name)}</h3><p class="small muted">${c.memberCount} / ${c.capacity} members</p><button class="button secondary sm" data-action="view-members" data-id="${id(c)}">View Members →</button></div>`).join('')||empty('♧','No assigned clubs','Ask the administrator to assign you to a club.')}</div>`;}
   function manageClubsPage(){if(!isAdmin())return denied();return topHeading('Club Management','Create, update and control club registration availability.',`<button class="button primary sm" data-action="create-club">+ Create Club</button>`)+`<div class="table-wrap"><table><thead><tr><th>Club</th><th>Category</th><th>Capacity</th><th>Status</th><th>Actions</th></tr></thead><tbody>${state.clubs.map(c=>`<tr><td><div class="table-person">${escapeHtml(c.name)}</div></td><td>${escapeHtml(c.category)}</td><td>${c.memberCount}/${c.capacity}</td><td>${status(c.status)}</td><td><button class="button secondary sm" data-action="edit-club" data-id="${id(c)}">Edit Club</button></td></tr>`).join('')}</tbody></table></div>`;}
+  function adminMembersPage(){
+    if(!isAdmin())return denied();
+    const rows=state.allMemberships||[];
+    const body=rows.length
+      ?`<div class="table-wrap"><table><thead><tr><th>Student</th><th>Student ID</th><th>Club</th><th>Academic Year</th><th>Status</th><th>Joined</th></tr></thead><tbody>${rows.map(m=>`<tr><td class="table-person">${escapeHtml(m.studentId?.fullName||'—')}</td><td>${escapeHtml(m.studentId?.studentId||'—')}</td><td>${escapeHtml(m.clubId?.name||'—')}</td><td>${escapeHtml(m.academicYear)}</td><td>${status(m.status)}</td><td>${date(m.joinedAt)}</td></tr>`).join('')}</tbody></table></div>`
+      :empty('♧','No memberships yet','Approved members will appear here.');
+    return topHeading('All Memberships','School-wide membership records, available only to system administrators.')+body;
+  }
   function adminUsersPage(){if(!isAdmin())return denied();return topHeading('User Management','View student accounts and assign club officers or advisers.',`<button class="button primary sm" data-action="assign-staff">+ Assign Club Staff</button>`)+`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.users.map(u=>`<tr><td class="table-person">${escapeHtml(u.fullName)}</td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.role)}</td><td>${status(u.status)}</td><td>${u._id===state.user._id?'—':`<button class="button ghost sm" data-action="toggle-user" data-id="${id(u)}">${u.status==='active'?'Disable':'Activate'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;}
   function reportsPage(){if(!isAdmin())return denied();return topHeading('Reports & Analytics','School-wide snapshots and registration report exports.',`<button class="button primary sm" data-action="download-report">↓ Export Applications CSV</button>`)+`<div class="stat-grid" style="margin:0 0 24px">${[['Clubs',state.stats.clubs||0,'Active club records','◇'],['Applications',state.stats.applications||0,'All applications','▤'],['Memberships',state.stats.memberships||0,'Confirmed members','♧'],['Students',state.stats.students||0,'Registered students','✦']].map(x=>statCard(...x)).join('')}</div><div class="panel"><h3 class="panel-title">Application Status Breakdown</h3>${['pending','approved','rejected','waitlisted','cancelled'].map(st=>{const count=staffApps().filter(a=>a.status===st).length;const pct=staffApps().length?Math.round(count/staffApps().length*100):0;return `<div style="display:grid;grid-template-columns:105px 1fr 35px;gap:13px;align-items:center;margin:14px 0"><span class="small muted" style="text-transform:capitalize">${st}</span><div style="height:10px;background:#f2eee6;border-radius:30px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#b89552;border-radius:30px"></div></div><b class="small">${count}</b></div>`}).join('')}</div>`;}
   function settingsPage(){
@@ -251,9 +284,13 @@
       `<div class="cards-two"><div class="panel"><h3 class="panel-title">Academic Year</h3><p class="small muted">Current active registration academic year</p><div style="font:700 28px 'Playfair Display',serif;margin:16px 0">${escapeHtml(state.settings.academicYear)}</div><button class="button secondary sm" data-action="edit-year">Update Academic Year</button></div><div class="panel"><h3 class="panel-title">System Configuration</h3><p class="small muted">Application and hosting settings</p><div class="divider"></div><p class="small">API: <b>${cfg.DEMO_MODE?'Local Browser Demo':'Express / MongoDB Atlas'}</b></p><p class="small">Logo: <b>Official THE HAVEN seal</b></p><p class="small">Splash screen: <b>2 seconds / pulse</b></p></div></div><div class="panel landing-settings-panel"><h3 class="panel-title">Landing Page Content</h3><p class="small muted">Update the public section heading, description, and all three card titles and descriptions.</p><div class="divider"></div><p class="small"><b>Current heading:</b> ${escapeHtml(landing.heading)}</p><button class="button secondary sm" data-action="edit-landing">Edit Landing Page</button></div>`;
   }
   function denied(){return empty('⊘','Access restricted','Your account does not have permission to view this page.');}
-  function view(){return ({dashboard:dashboard,clubs:clubsPage,applications:applicationsPage,memberships:membershipsPage,announcements:announcementsPage,notifications:notificationsPage,'staff-applications':staffApplicationsPage,'staff-members':membersPage,'admin-clubs':manageClubsPage,'admin-users':adminUsersPage,reports:reportsPage,settings:settingsPage}[state.route]||dashboard)();}
+  function view(){return ({dashboard:dashboard,clubs:clubsPage,applications:applicationsPage,memberships:membershipsPage,announcements:announcementsPage,notifications:notificationsPage,'staff-applications':staffApplicationsPage,'staff-members':membersPage,'admin-clubs':manageClubsPage,'admin-members':adminMembersPage,'admin-users':adminUsersPage,reports:reportsPage,settings:settingsPage}[state.route]||dashboard)();}
   function render(){
-    if(!state.user&&!['home','clubs'].includes(state.route))state.route='home';
+    if(!canAccessRoute(state.route)){
+      state.route=state.user?'dashboard':'home';
+      const safeHash='#/'+state.route;
+      if(location.hash!==safeHash)location.hash=safeHash;
+    }
     $('#app').innerHTML=(state.route==='home'||!state.user)?publicSite():shell();
   }
 
