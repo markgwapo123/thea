@@ -17,7 +17,7 @@ try {
   }
   await mongoose.connection.db.command({ ping: 1 });
   console.log('MongoDB Atlas connected successfully to database: ' + connectedDatabase);
-  console.log('Ping OK. Initialize the database with: npm run seed');
+  console.log('Ping OK. Initialize collections without sample data with: npm run db:init');
 } catch (error) {
   console.error('MongoDB Atlas connection test failed.');
   console.error('Error type: ' + (error?.name || 'UnknownError'));
