@@ -1,0 +1,27 @@
+# THE HAVEN — optional single-origin Render hosting.
+# This is configuration only. Committing it does NOT deploy anything.
+# When a Render Blueprint is explicitly created, this web service can serve
+# both the existing HTML frontend and the Express API over one HTTPS origin.
+services:
+  - type: web
+    name: the-haven-fbc
+    runtime: node
+    plan: free
+    branch: main
+    autoDeployTrigger: "off"
+    buildCommand: cd the-haven-webapp/backend && npm install --no-audit --no-fund
+    startCommand: cd the-haven-webapp/backend && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_DB_NAME
+        value: the_haven_db
+      - key: SERVE_FRONTEND
+        value: "true"
+      - key: CROSS_SITE_COOKIES
+        value: "false"
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
