@@ -977,3 +977,34 @@ input:disabled{background:#f5f3ef;color:#777268}
   .delete-user-warning{padding:12px;font-size:12px}
   .delete-user-summary{padding:12px}
 }
+
+
+/* Consistent Review / Disable / Reactivate + Delete User action alignment.
+   Scoped to User Management so other tables keep their original layout. */
+.user-management-actions{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:9px;
+  width:156px;
+  min-width:156px;
+  align-items:stretch;
+}
+.user-management-actions .button{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  width:100%;
+  min-width:0;
+  min-height:44px;
+  margin:0;
+  padding:10px 12px;
+  box-sizing:border-box;
+  border-radius:11px;
+  line-height:1.25;
+  white-space:normal;
+  text-align:center;
+}
+@media(max-width:640px){
+  .user-management-actions{width:150px;min-width:150px;gap:8px}
+  .user-management-actions .button{min-height:46px;padding:10px 9px}
+}
