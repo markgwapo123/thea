@@ -261,6 +261,7 @@
   async function action(event){const node=event.target.closest('[data-action]');if(!node)return;const type=node.dataset.action, itemId=node.dataset.id;
     if(type==='modal-backdrop'&&event.target!==node)return;
     if(type==='close-modal'||type==='modal-backdrop'){closeModal();return;}
+    if(type==='skip-content'){const main=$('#main-content');if(main){main.setAttribute('tabindex','-1');main.focus({preventScroll:true});main.scrollIntoView({block:'start',behavior:'smooth'});}return;}
     if(type==='retry-loading'){await fetchAll();return;}
     if(type==='toggle-password'){const input=node.closest('.field')?.querySelector('input');if(!input)return;const reveal=input.type==='password';input.type=reveal?'text':'password';node.textContent=reveal?'Hide':'Show';node.setAttribute('aria-label',reveal?'Hide password':'Show password');node.setAttribute('aria-pressed',String(reveal));return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
