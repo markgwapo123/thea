@@ -9,6 +9,12 @@ const userSchema = new Schema({
   passwordHash: { type: String, required: true, select: false },
   department: { type: String, trim: true, maxlength: 100, default: '' },
   yearLevel: { type: String, trim: true, maxlength: 40, default: '' },
+  // Required on NEW student registrations; defaults preserve existing accounts.
+  age: { type: Number, min: 13, max: 100, default: null },
+  address: { type: String, trim: true, maxlength: 200, default: '' },
+  skills: { type: String, trim: true, maxlength: 500, default: '' },
+  talents: { type: String, trim: true, maxlength: 500, default: '' },
+  joinReason: { type: String, trim: true, maxlength: 1200, default: '' },
   role: { type: String, enum: ['student', 'admin'], default: 'student' },
   // Registered students require administrator approval before accessing the portal.
   status: { type: String, enum: ['pending','active','rejected','disabled'], default: 'pending' },
