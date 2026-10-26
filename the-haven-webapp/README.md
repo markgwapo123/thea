@@ -1,5 +1,20 @@
 # THE HAVEN: PEER FACILITATORS' COMMUNITY
 
+## Vercel production frontend (2026-10-26)
+
+The Render backend is online at `https://the-haven-backend.onrender.com`, and the GitHub standalone frontend is now prepared for **real production API mode** via `frontend/config.js`.
+
+For a new Vercel project, import **`markgwapo123/thea`** using the **Root Directory `the-haven-webapp/frontend`** (not the repo root or backend folder). Choose *Other* as the framework preset and use the existing `frontend/vercel.json` for the no-build static site. Vercel sends `/api/*` to Render using an external rewrite, while browsers use the Vercel domain for login session cookies. No frontend secrets are required.
+
+**Post-deployment required step:** In Render for `the-haven-backend`, set `FRONTEND_ORIGINS` to the exact production Vercel origin, such as `https://YOUR-PROJECT.vercel.app`, **after Vercel shows the real URL**. Keep `CROSS_SITE_COOKIES=false`. This is required because the API rejects unapproved browser origins for POST/PUT/PATCH/DELETE requests. Do **not** blindly allow `*.vercel.app` and do **not** put `MONGODB_URI`, `JWT_SECRET`, `ADMIN_PASSWORD` or `ADMIN_EMAIL` in Vercel static frontend files.
+
+After the origin is set, test Vercel `/api/health` (expect HTTP 200 + `status:ok`), admin sign-in, `/api/me`, a new pending test registration, admin approval, and the limited approved student dashboard.
+
+The frontend is **configured and committed only** until an actual Vercel deployment appears. Do not treat a GitHub commit as proof of Vercel hosting.
+
+---
+
+
 > **Repository status (2026-10-26):** This project is already uploaded to **https://github.com/markgwapo123/thea** under `the-haven-webapp/`. **Do not deploy to Vercel yet.** MongoDB connection utilities are in `backend/src/check-db.js`, with instructions in `DATABASE_SETUP.md`. **No real database password or connection URI is committed.** The database connection has not been verified; configure your private `backend/.env` before running `npm run db:check`. When deployment is requested, the Vercel root will be `the-haven-webapp/frontend` and the backend directory will be `the-haven-webapp/backend`. The original setup section below was written before this repository was created; use the updated instructions above instead.
 
 ## Access update — Administrator approval and member announcements (2026-10-26)
