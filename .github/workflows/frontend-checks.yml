@@ -90,6 +90,8 @@ jobs:
           assert.match(app, /const passwordEyeIcon = '<svg /, 'Password must use the eye SVG');
           assert.match(app, /const passwordEyeOffIcon = '<svg /, 'Visible password must use the eye-off SVG');
           assert.ok(app.includes('node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon'), 'Button click must change the eye icon');
+          assert.ok(app.includes('aria-controls="f-${name}"'), 'Eye icon should reference the password input');
+          assert.ok(html.includes('app.js?v=20261026-eye-toggle'), 'Browser must fetch new password eye JavaScript');
           assert.ok(app.includes("node.setAttribute('aria-label',reveal?'Hide password':'Show password')"), 'Eye icon button must remain accessible');
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
