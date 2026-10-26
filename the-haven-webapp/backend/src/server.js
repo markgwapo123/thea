@@ -289,7 +289,7 @@ app.get('/api/staff', auth, onlyAdmin, wrap(async (req, res) => {
 }));
 app.post('/api/staff', auth, onlyAdmin, wrap(async (req, res) => {
   if (!validId(req.body.userId) || !validId(req.body.clubId) || !['adviser','officer'].includes(req.body.role)) return fail(res, 'Valid user, club and staff role required.');
-  if (!(await User.exists({ _id: req.body.userId, status:'active' })) || !(await Club.exists({ _id: req.body.clubId, status: { $ne:'archived' } }))) return fail(res, 'Approved user or club not found.', 404);
+  if (!(await User.exists({ _id: req.body.userId, status:'active', role:'student' })) || !(await Club.exists({ _id: req.body.clubId, status: { $ne:'archived' } }))) return fail(res, 'Approved user or club not found.', 404);
   const staff = await ClubStaff.findOneAndUpdate({ userId: req.body.userId, clubId: req.body.clubId, role: req.body.role }, { $setOnInsert: { userId: req.body.userId, clubId: req.body.clubId, role: req.body.role } }, { upsert: true, new: true });
   await audit(req.user._id, 'club_staff_assigned', 'ClubStaff', staff._id);
   res.status(201).json({ staff });
@@ -350,13 +350,14 @@ app.patch('/api/users/:id/registration',auth,onlyAdmin,wrap(async(req,res)=>{
   const decision=req.body.decision;
   const note=clean(req.body.note,300);
   if(!['approved','rejected'].includes(decision))return fail(res,'Choose Approved or Rejected.');
-  const user=await User.findById(req.params.id);
-  if(!user||user.role!=='student')return fail(res,'Student account not found.',404);
-  if(!['pending','rejected'].includes(user.status))return fail(res,'Only pending or previously rejected accounts can be reviewed.',409);
-  user.status=decision==='approved'?'active':'rejected';
-  user.registrationNote=decision==='rejected'?note:'';
-  if(decision==='approved'){user.approvedAt=new Date();user.approvedBy=req.user._id;}
-  await user.save();
+  const changes=decision==='approved'
+    ? {status:'active',registrationNote:'',approvedAt:new Date(),approvedBy:req.user._id}
+    : {status:'rejected',registrationNote:note};
+  // Atomic status filter stops two administrators from deciding the same account concurrently.
+  const user=await User.findOneAndUpdate({
+    _id:req.params.id,role:'student',status:{$in:['pending','rejected']}
+  },{$set:changes},{new:true,runValidators:true});
+  if(!user)return fail(res,'Account not found or has already been approved.',409);
   await audit(req.user._id,'account_registration_'+decision,'User',user._id);
   if(decision==='approved')await notify(user._id,'Your registration is approved','Welcome! You can now access your community dashboard.');
   res.json({user:safe(user)});
