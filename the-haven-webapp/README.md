@@ -205,3 +205,11 @@ cd backend
 npm run check
 node --check ../frontend/app.js
 ```
+
+
+### Extended student registration
+
+New student sign-ups must provide **Age**, **Address** (e.g., barangay, municipality/city and province), **Skills**, **Talents**, and a short answer to **“Why did you join this organization?”** alongside their existing student information and login credentials. Age accepts whole numbers from 13 to 100; the other answers are validated and length-limited in both the form and Express API. Students remain **pending** until an administrator approves them.
+
+Administrators can review these answers using **Registration Requests → View Details**, and can still view details for already approved students through **User Management → View Details**. A student can review their own answers under **Account Settings → My registration information**. These answers are not published on public pages. Prior user accounts retain their previous state; missing registration details display as “Not provided” instead of blocking login.
+
