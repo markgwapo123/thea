@@ -8,9 +8,11 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js",
-    "check": "node --check src/server.js && node --check src/models.js && node --check src/seed.js && node --check src/check-db.js && node --check src/init-db.js",
+    "check": "node --check src/server.js && node --check src/models.js && node --check src/seed.js && node --check src/check-db.js && node --check src/init-db.js && node --check src/bootstrap-admin.js && node --check src/smoke-api.js",
     "db:check": "node src/check-db.js",
-    "db:init": "node src/init-db.js"
+    "db:init": "node src/init-db.js",
+    "admin:create": "node src/bootstrap-admin.js",
+    "api:smoke": "node src/smoke-api.js"
   },
   "engines": {
     "node": ">=20"
