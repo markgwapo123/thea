@@ -5,7 +5,7 @@
 **Status:** Phase 3 code and configuration are ready in `main`. No Render service or Vercel project has been created or deployed by this phase.
 
 ## What this phase adds
-- An **opt-in** [Render Blueprint](../../render.yaml) for a free Node.js web service using `the-haven-webapp` as the shared frontend/backend directory.
+- An **opt-in** [Render Blueprint](../render.yaml) for a free Node.js web service using `the-haven-webapp` as the shared frontend/backend directory.
 - **One HTTPS origin** for the UI and API, so authenticated browser requests use first-party cookies instead of cross-site third-party cookies.
 - Express serves the original existing frontend only when `SERVE_FRONTEND=true`. On that hosted service it overrides the public `/config.js` response with `DEMO_MODE:false` and `API_BASE_URL:'/api'`; **no MongoDB URI, JWT secret, or admin credentials are exposed to the browser**.
 - Production session cookies use `Secure; HttpOnly; SameSite=Lax` by default. Only configure `CROSS_SITE_COOKIES=true` if deploying a separate cross-site frontend later, with proper HTTPS, origin allowlist, and browser compatibility testing.
