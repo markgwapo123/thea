@@ -1,47 +1,67 @@
-# THE HAVEN: Role-Based Access Control (RBAC)
+# THE HAVEN — Final Access & Registration Flow
 
-This project enforces access through **two levels**:
+## Account approval policy
 
-1. Frontend shows only the appropriate navigation and blocks unauthorized page routes.
-2. Express API checks the authenticated account and assigned-club permissions; hidden UI controls alone are **not** security.
+**New registrations are not immediately active.** The server always creates public signup accounts with `role: student` and `status: pending`.
 
-## Permissions matrix
+- **Pending:** Can log in only to see “Waiting for Admin Approval” and check status. Cannot open community dashboard or protected data.
+- **Rejected:** Can log in only to see “Registration Rejected” and any administrator note. Cannot open community dashboard.
+- **Active/approved:** Can access the limited member experience (below).
+- **Disabled:** Cannot log in. An admin may reactivate a previously active account.
 
-| Feature | Public visitor | Student (user) | Officer | Adviser | Administrator |
-|---|---|---|---|---|---|
-| Landing page, available clubs and public announcements | View | View | View | View | View |
-| Personal dashboard, own applications and memberships | — | Own | Own | Own | Own |
-| Apply to join and cancel own pending/waitlisted applications | — | Own | Own | Own | Own |
-| Personal notifications | — | Own | Own | Own | Own |
-| View club applications and members | — | — | Assigned clubs | Assigned clubs | All clubs |
-| Review / approve / reject applications | — | — | — | Assigned clubs | All clubs |
-| Publish club announcements | — | — | Assigned clubs | Assigned clubs | All clubs |
-| Publish school-wide announcements | — | — | — | — | All |
-| Create/edit/archive clubs | — | — | — | — | All |
-| Manage users, disable/reactivate accounts, assign officer/adviser | — | — | — | — | All |
-| Access school-wide reports and statistics | — | — | Assigned clubs | Assigned clubs | All |
-| View all memberships (paginated) | — | — | — | — | All |
-| Edit public landing content and academic year | — | — | — | — | All |
+Admin approves or rejects accounts through **Registration Requests**. Rejected accounts may be reconsidered by an admin later. Public signup cannot create administrator accounts. The initial admin is provisioned separately, and any additional administrators are created through an existing admin session.
 
-> Officers and advisers are regular student accounts with an assignment in `ClubStaff`; a user without an assignment is not allowed into club management.
+**Existing accounts already marked `active` retain that status.** This rollout does not silently downgrade existing approved users. Administrators should review any legacy active users before real use.
 
-## API guard behavior
+## Approved student dashboard
 
-- `GET /api/applications?mine=1` gives the logged-in user's own applications.
-- `GET /api/applications` requires an administrator or assigned club staff. For staff, results are limited to their assigned clubs.
-- `GET /api/memberships` gives the user's own memberships.
-- `GET /api/memberships?clubId=<id>` requires an administrator or an assignment to that club.
-- `GET /api/memberships?all=1&page=1` requires an administrator; pages contain up to 100 members.
-- `GET /api/admin/clubs` includes archived clubs, **admin-only**. `GET /api/clubs` remains the public non-archived directory.
-- `GET /api/stats` and `GET /api/staff` require an administrator or assigned staff, with scoped results for staff.
-- Club management, user management, staff assignments, and changing settings are **admin-only**.
-- Application review requires the assigned adviser or an administrator; officers cannot approve applications.
-- Attempts to access forbidden API routes return HTTP **403**.
+Students, officers and advisers share a limited, read-only member view:
 
-## Security notes
+| Feature | Approved member | Administrator |
+|---|---|---|
+| Dashboard announcements | View | View and publish |
+| Club officer & adviser directory | View names and roles | View, assign and remove roles |
+| Personal account settings | Change own name, department, year level and password | Same for own account |
+| Approve/reject new user registrations | No | Yes |
+| Create other admin accounts | No | Yes |
+| Edit website name/logo | No | Yes |
+| Edit public landing page | No | Yes |
+| Manage clubs, accounts and reports | No | Yes |
+| Legacy club application/membership management | No | Yes |
 
-- Public registration creates `student` accounts only. An ordinary registration payload cannot choose `admin`.
-- Production accounts are validated using signed login cookies and the user's role stored in MongoDB; ordinary users cannot grant themselves admin access.
-- The local `DEMO_MODE` role selector is a **visual preview only** and must never be used as production authorization.
-- The changes in this repository do **not** deploy to Render/Vercel or provision administrator accounts. The MongoDB-backed behavior requires a configured production backend, authentic admin account and real database connection.
-- Browser navigation controls are for usability; Express API guards remain the authoritative security boundary.
+The public club directory and landing page remain viewable before login, but those sections are not student dashboard modules. The earlier student club-application features are no longer available to approved regular users; existing legacy club records and admin controls are preserved.
+
+## Admin operations
+
+- **Admin → Registration Requests:** Approve or reject pending students and reconsider rejected accounts.
+- **Admin → Announcements:** Create school-wide or club announcements for approved users.
+- **Admin → Manage Officers:** Assign an approved student to a club as officer or adviser; remove an assignment.
+- **Admin → User Management → Add Administrator:** Create a new active admin with a 12–128 character password. This protected endpoint is unavailable through public registration.
+- **Admin → System Settings → Edit Name & Logo:** Customize the visible brand name and upload PNG/JPEG/WebP logo up to 350 KB, or restore the official original logo. Values are stored in the existing `Setting` collection and apply to splash, header, dashboard, favicon and relevant website labels.
+- **Admin → System Settings → Edit Landing Page:** Edit public section text.
+
+## New and updated endpoints
+
+- `POST /api/auth/register` → create pending member.
+- `POST /api/auth/login` → pending/rejected login permitted for status-only viewing; disabled login denied.
+- `GET /api/me` → logged-in status information; pending/rejected allowed.
+- `PATCH /api/users/:id/registration` → **admin only**; approve/reject registration.
+- `POST /api/admin/accounts` → **admin only**; add another admin.
+- `GET /api/leadership` → **approved member/admin only**; public-facing officer and adviser names.
+- `POST /api/staff`, `DELETE /api/staff/:id` → **admin only**; manage leadership.
+- `GET /api/announcements` → approved member/admin only.
+- `POST /api/announcements` → **admin only**.
+- `PUT /api/me/profile`, `PUT /api/me/password` → approved user editing own information only.
+- `GET /api/settings` → public branding and public landing copy.
+- `PUT /api/settings/branding` → **admin only**; update brand.
+- Existing management endpoints for users, reports, club applications and memberships remain admin-only.
+
+The server checks account status from MongoDB on each protected request, in addition to signed authentication cookies. Route restrictions are enforced on the frontend as well, but backend guards remain authoritative. Uploaded branding is checked for supported image signatures and capped at 350 KB to avoid arbitrary external image URLs.
+
+## Deployment and validation
+
+This change updates GitHub source code **only**. It does not deploy a live app, run MongoDB data migrations, or verify existing MongoDB credentials. The standalone `frontend/config.js` still has `DEMO_MODE: true` for preview until production deployment is authorized.
+
+To use real accounts: deploy the existing Express backend with MongoDB Atlas, ensure an active initial administrator, serve the frontend in real API mode, run backend syntax checks and the manual read-only smoke test, and test new pending signup → rejected or approved status → dashboard access.
+
+Review existing active users first: `status: active` means already allowed, while new public signup accounts automatically become `pending`. No `.env` secrets or real student records should be committed.
