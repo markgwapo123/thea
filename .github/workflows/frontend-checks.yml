@@ -62,7 +62,7 @@ jobs:
           assert.match(css, /@media\(max-width:800px\)\s*\{[\s\S]*?\.public-hero\.hero-simple \.hero-actions\s*\{\s*display:grid;\s*grid-template-columns:minmax\(0,1fr\);/, 'Hero mobile actions must stack in one full-width column');
           assert.match(css, /\.public-hero\.hero-simple \.hero-actions \.button\s*\{[^}]*white-space:normal;[^}]*overflow-wrap:break-word;/, 'Hero button labels must wrap within their own bounds instead of overlapping');
           assert.match(css, /\.public-hero\.hero-simple \.public-art\s*\{[^}]*margin:10px auto 0;/, 'Hero illustration must sit below mobile text');
-          assert.ok(html.includes('styles.css?v=20261026-eye-toggle'), 'Updated CSS must bypass stale browser cache');
+          assert.ok(html.includes('styles.css?v=20261026-approval-status-check'), 'Updated CSS must bypass stale browser cache');
           assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
           assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
           assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
@@ -91,7 +91,7 @@ jobs:
           assert.match(app, /const passwordEyeOffIcon = '<svg /, 'Visible password must use the eye-off SVG');
           assert.ok(app.includes('node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon'), 'Button click must change the eye icon');
           assert.ok(app.includes('aria-controls="f-${name}"'), 'Eye icon should reference the password input');
-          assert.ok(html.includes('app.js?v=20261026-eye-toggle'), 'Browser must fetch new password eye JavaScript');
+          assert.ok(html.includes('app.js?v=20261026-approval-status-check'), 'Browser must fetch new password eye JavaScript');
           assert.ok(app.includes("node.setAttribute('aria-label',reveal?'Hide password':'Show password')"), 'Eye icon button must remain accessible');
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
@@ -102,6 +102,16 @@ jobs:
           assert.ok(app.includes('>Menu</button>'), 'Mobile menu button must be text-only');
           assert.ok(app.includes('class="password-toggle"'), 'Keep essential password eye toggle');
           assert.ok(css.includes('.hero-facts span::before{content:none;display:none}'), 'Landing checklist marks must be hidden');
-          assert.ok(html.includes('styles.css?v=20261026-text-only-ui') && html.includes('app.js?v=20261026-text-only-ui'), 'Mobile browsers must fetch fresh assets');
+          assert.ok(html.includes('styles.css?v=20261026-approval-status-check') && html.includes('app.js?v=20261026-approval-status-check'), 'Mobile browsers must fetch fresh assets');
+          assert.ok(app.includes('async function checkApprovalStatus()'), 'Check Status needs a dedicated live request');
+          assert.ok(app.includes("const latest=await get('/me')"), 'Current status must be fetched from /me');
+          assert.ok(app.includes("if(type==='check-approval'){await checkApprovalStatus();return;}"), 'Button must use live status refresh');
+          assert.ok(app.includes("nav('dashboard');"), 'Approved accounts must reach the dashboard');
+          assert.ok(app.includes("state.approvalFeedback='Status checked: Still pending."), 'Pending users must see an explicit result');
+          assert.ok(app.includes("state.approvalFeedback='Status checked: Registration rejected."), 'Rejected users must see an explicit result');
+          assert.ok(app.includes('role="status" aria-live="polite"'), 'Status feedback must be accessible');
+          assert.ok(app.includes('disabled aria-busy="true"'), 'Repeated status checks must be blocked');
+          assert.ok(app.includes("cache:'no-store'"), 'Avoid stale account status in the browser');
+          assert.ok(css.includes('.approval-check-feedback{'), 'Status messaging must have responsive styles');
           console.log('THE HAVEN UI checks passed. No deployment occurred.');
           NODE

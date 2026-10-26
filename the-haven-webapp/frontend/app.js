@@ -42,7 +42,7 @@
   };
   const landingContent = () => state.settings?.landingPage || DEFAULT_LANDING;
   const renderLandingCard = item => `<div class="feature-card no-icon"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p></div>`;
-  const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], leaders:[], clubStaff:[], allMemberships:[], memberPage:1, memberPagination:null, stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
+  const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], leaders:[], clubStaff:[], allMemberships:[], memberPage:1, memberPagination:null, stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false, approvalChecking:false, approvalFeedback:'' };
 
   const demoSeed = () => ({
     currentUser:'u-student', academicYear:'2026–2027', landingPage:DEFAULT_LANDING, branding:{name:DEFAULT_BRAND,logoDataUrl:null}, seq:20,
@@ -212,7 +212,7 @@
   async function api(method, path, body) {
     if(cfg.DEMO_MODE) return demoResponse(method,path,body);
     const url = cfg.API_BASE_URL.replace(/\/$/,'')+path;
-    const res = await fetch(url, {method, credentials:'include', headers:{'Content-Type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {})});
+    const res = await fetch(url, {method, credentials:'include', ...(method==='GET'&&path==='/me'?{cache:'no-store'}:{}), headers:{'Content-Type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {})});
     const data = await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(data.error||`Request failed (${res.status})`);
     return data;
@@ -225,11 +225,15 @@
     state.memberPagination=result.pagination||{page,pageSize:100,total:state.allMemberships.length,pages:1};
     state.memberPage=page;
   }
-  async function fetchAll(){
+  async function fetchAll(confirmedSession=null){
     try{
       const [clubs,settings]=await Promise.all([get('/clubs'),get('/settings')]);
       state.clubs=clubs.clubs;state.settings=settings;applyBranding();
-      try{const me=await get('/me');state.user=me.user||null;state.staff=me.staff||[];}catch{state.user=null;state.staff=[];}
+      if(confirmedSession?.user){
+        state.user=confirmedSession.user;state.staff=confirmedSession.staff||[];
+      }else{
+        try{const me=await get('/me');state.user=me.user||null;state.staff=me.staff||[];}catch{state.user=null;state.staff=[];}
+      }
       state.applications=[];state.memberships=[];state.announcements=[];state.notifications=[];
       state.users=[];state.leaders=[];state.clubStaff=[];state.staffApplications=[];state.allMemberships=[];state.stats={};
       if(state.user?.status==='active'){
@@ -243,8 +247,10 @@
       }
       if(state.user?.role!=='admin'){state.memberPage=1;state.memberPagination=null;}
       render();
+      return true;
     }catch(err){
       $('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load the community website</h2><p>${escapeHtml(err.message)}</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;
+      return false;
     }
   }
   function canAccessRoute(route){
@@ -379,7 +385,47 @@
   }
   function approvalStatusPage(){
     const rejected=state.user.status==='rejected';
-    return `<div class="approval-page"><div class="approval-panel"><img class="approval-logo" src="${brandLogo()}" alt="Community logo"><div class="eyebrow">REGISTRATION STATUS</div><h1>${rejected?'Registration Rejected':'Waiting for Admin Approval'}</h1><p>${rejected?'Your registration was not approved. Please contact the organization administrator.':'Your registration has been submitted. An administrator must approve your account before you can access the dashboard.'}</p>${rejected&&state.user.registrationNote?`<p class="approval-note"><strong>Admin note:</strong> ${escapeHtml(state.user.registrationNote)}</p>`:''}<div class="approval-actions"><button class="button primary" data-action="check-approval">Check Status</button><button class="button secondary" data-action="logout">Sign Out</button>${cfg.DEMO_MODE?'<button class="button ghost" data-action="demo-role" data-id="u-admin">Preview Admin</button>':''}</div><div class="small muted">Signed in as ${escapeHtml(state.user.email)}</div></div></div>`;
+    const feedback=state.approvalChecking
+      ? 'Checking your latest registration status...'
+      : state.approvalFeedback;
+    return `<div class="approval-page"><div class="approval-panel"><img class="approval-logo" src="${brandLogo()}" alt="Community logo"><div class="eyebrow">REGISTRATION STATUS</div><h1>${rejected?'Registration Rejected':'Waiting for Admin Approval'}</h1><p>${rejected?'Your registration was not approved. Please contact the organization administrator.':'Your registration has been submitted. An administrator must approve your account before you can access the dashboard.'}</p>${rejected&&state.user.registrationNote?`<p class="approval-note"><strong>Admin note:</strong> ${escapeHtml(state.user.registrationNote)}</p>`:''}<div class="approval-actions"><button type="button" class="button primary" data-action="check-approval" ${state.approvalChecking?'disabled aria-busy="true"':''}>${state.approvalChecking?'Checking...':'Check Status'}</button><button type="button" class="button secondary" data-action="logout">Sign Out</button>${cfg.DEMO_MODE?'<button class="button ghost" data-action="demo-role" data-id="u-admin">Preview Admin</button>':''}</div><p class="approval-check-feedback" role="status" aria-live="polite">${escapeHtml(feedback||'')}</p><div class="small muted">Signed in as ${escapeHtml(state.user.email)}</div></div></div>`;
+  }
+  async function checkApprovalStatus(){
+    if(state.approvalChecking || !state.user || state.user.status==='active')return;
+    state.approvalChecking=true;
+    state.approvalFeedback='';
+    render();
+    try{
+      const latest=await get('/me');
+      if(!latest?.user)throw new Error('Session expired. Please sign in.');
+      state.user=latest.user;
+      state.staff=latest.staff||[];
+      if(latest.user.status==='active'){
+        state.approvalFeedback='';
+        state.approvalChecking=false;
+        nav('dashboard');
+        const loaded=await fetchAll(latest);
+        if(loaded)toast('Your registration is approved. Welcome to THE HAVEN!');
+        return;
+      }
+      if(latest.user.status==='pending'){
+        state.approvalFeedback='Status checked: Still pending. An administrator has not approved your registration yet.';
+      }else if(latest.user.status==='rejected'){
+        state.approvalFeedback='Status checked: Registration rejected. Please review the administrator note or contact the administrator.';
+      }else{
+        state.approvalFeedback='Your account is not active. Please contact the administrator.';
+      }
+    }catch(error){
+      const message=String(error?.message||'');
+      state.approvalFeedback=/session expired|please sign in|unauthorized/i.test(message)
+        ? 'Your login session has expired. Sign out and log in again to check your status.'
+        : /account unavailable/i.test(message)
+          ? 'This account is unavailable. Please contact the administrator.'
+          : 'Unable to check your status right now. Please check your connection and try again.';
+    }finally{
+      state.approvalChecking=false;
+      if(state.user?.status!=='active')render();
+    }
   }
   function notificationsPage(){return topHeading('Notifications','Keep track of important updates about your account and applications.')+`<div class="panel activity-list">${state.notifications.map(n=>`<div class="activity-item"><div style="flex:1"><div class="activity-title">${escapeHtml(n.title)} ${!n.read?'<span class="badge pending">New</span>':''}</div><div class="activity-text">${escapeHtml(n.message)}</div><div class="activity-time">${ago(n.createdAt)}</div></div>${!n.read?`<button data-action="mark-read" data-id="${id(n)}" class="button ghost sm">Mark read</button>`:''}</div>`).join('')||empty('♧','All caught up','No notifications right now.')}</div>`;}
   function staffApplicationsPage(){if(!hasStaff()&&!isAdmin())return denied();return topHeading('Application Review','Review club applications, make decisions, and welcome new members.')+applicationTable(staffApps(),true);}
@@ -437,6 +483,7 @@
   }
   function openApply(cid){const c=clubOf(cid);if(!c)return;showModal(`Apply to ${c.name}`,`<div class="banner">Academic Year: ${escapeHtml(state.settings.academicYear)} · ${Math.max(0,c.capacity-c.memberCount)} slots available</div><br><div class="split-input">${field('fullName','Student Name','text',state.user.fullName,'disabled')}${field('studentId','Student ID','text',state.user.studentId,'disabled')}</div>${textarea('motivation','Why do you want to join this club?','','required minlength="15" maxlength="1000" placeholder="Share your motivation in a few sentences..."')}<p class="helper">Your application will be reviewed by the assigned club adviser. Duplicate applications for the same academic year are not allowed.</p>`,data=>mutation('POST','/applications',{clubId:cid,motivation:data.motivation},'Your application has been submitted!'),{submitLabel:'Submit Application'});}
   function openAuth(mode){
+    state.approvalFeedback='';
     const login=mode==='login';const content=`<img class="auth-logo" src="${brandLogo()}" alt="Community logo"><h3 class="auth-title">${login?'Welcome back':'Join the Community'}</h3><p class="auth-desc">${login?'Sign in to view your account approval status.':'Register for community access. Your account requires administrator approval before the dashboard is available.'}</p>${cfg.DEMO_MODE?'<div class="auth-mode-note">Preview only · No real accounts or student records are created.</div>':''}${!login?field('fullName','Full Name','text','','required minlength="2"')+`<div class="split-input">${field('studentId','School Student ID','text','','required')}${field('yearLevel','Year Level','text','','placeholder="2nd Year"')}</div>`+field('department','Department / Program','text','','placeholder="e.g. College of Education"'):''}${field('email','Email Address','email','','required autocomplete="email"')}${field('password','Password','password','','required minlength="8" autocomplete="'+(login?'current-password':'new-password')+'"')}<p class="helper auth-helper">${cfg.DEMO_MODE?'Preview mode: account creation is simulated. Use the demo role controls to explore without credentials.':'Passwords must contain 8 or more characters. Please use school-approved account details.'}</p><p style="text-align:center;font-size:12px">${login?'New to our community?':'Already a member?'} <button type="button" class="text-link" data-action="${login?'register':'login'}">${login?'Create an account':'Log in'}</button></p>`;
     showModal('',content,async data=>{const endpoint=login?'/auth/login':'/auth/register';try{await api('POST',endpoint,data);closeModal();await fetchAll();nav(state.user?.status==='active'?'dashboard':'approval-status');toast(login?'Signed in.':'Registration submitted for admin review.');}catch(e){toast(e.message,true)}},{submitLabel:login?'Log in':'Create Account'});
   }
@@ -553,7 +600,7 @@
     if(type==='close-modal'||type==='modal-backdrop'){closeModal();return;}
     if(type==='skip-content'){const main=$('#main-content');if(main){main.setAttribute('tabindex','-1');main.focus({preventScroll:true});main.scrollIntoView({block:'start',behavior:'smooth'});}return;}
     if(type==='retry-loading'){await fetchAll();return;}
-    if(type==='check-approval'){await fetchAll();nav(state.user?.status==='active'?'dashboard':'approval-status');return;}
+    if(type==='check-approval'){await checkApprovalStatus();return;}
     if(type==='toggle-password'){
       const input=node.closest('.field')?.querySelector('input');
       if(!input)return;
@@ -573,7 +620,7 @@
     if(type==='login'||type==='register'){openAuth(type);return;}
     if(type==='demo-role') {if(!cfg.DEMO_MODE)return;demo.currentUser=itemId;saveDemo();await fetchAll();nav('dashboard');return;}
     if(type==='reset-demo'){if(confirm('Reset all browser demo data?')){demo=demoSeed();saveDemo();await fetchAll();nav('home');toast('Demo reset.');}return;}
-    if(type==='logout'){await api('POST','/auth/logout');if(cfg.DEMO_MODE){demo.currentUser='';saveDemo();}await fetchAll();nav('home');return;}
+    if(type==='logout'){state.approvalFeedback='';await api('POST','/auth/logout');if(cfg.DEMO_MODE){demo.currentUser='';saveDemo();}await fetchAll();nav('home');return;}
     if(type==='application-info'){const a=state.applications.find(x=>id(x)===itemId);if(a)showModal('My Application',`<div class="detail-intro"><b>${escapeHtml(a.clubId?.name)}</b><p style="margin:8px 0">${escapeHtml(a.motivation)}</p></div><p>Decision: ${status(a.status)}</p><p class="small muted">Submitted ${date(a.createdAt)}</p>${a.remarks?`<p>Review remarks: ${escapeHtml(a.remarks)}</p>`:''}`,async()=>closeModal(),{submitLabel:'Close'});return;}
     if(type==='cancel-app'){if(confirm('Cancel this application? You will not be able to re-apply during the same academic year.'))await mutation('PATCH',`/applications/${itemId}/cancel`,{},'Application cancelled.');return;}
     if(type==='review'){reviewApp(itemId);return;}

@@ -131,7 +131,10 @@ app.post('/api/auth/login', authLimit, wrap(async (req, res) => {
   res.json({ user: safe(user) });
 }));
 app.post('/api/auth/logout', (req, res) => { res.clearCookie('haven_token', { ...cookieOpts, maxAge: undefined }); res.json({ ok: true }); });
-app.get('/api/me', sessionAuth, wrap(async (req, res) => res.json({ user: safe(req.user), staff: await ClubStaff.find({ userId: req.user._id }).populate('clubId', 'name') })));
+app.get('/api/me', sessionAuth, wrap(async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.json({ user: safe(req.user), staff: await ClubStaff.find({ userId: req.user._id }).populate('clubId', 'name') });
+}));
 
 
 // User-only profile updates. Never accept role, status or approval fields from the client.
