@@ -24,7 +24,7 @@ if (process.env.ADMIN_EMAIL || process.env.ADMIN_PASSWORD) {
   }
   const email = process.env.ADMIN_EMAIL.toLowerCase().trim();
   if (!(await User.exists({ email }))) {
-    await User.create({ fullName: process.env.ADMIN_NAME || 'Haven Administrator', email, passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD, 12), role: 'admin' });
+    await User.create({ fullName: process.env.ADMIN_NAME || 'Haven Administrator', email, passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD, 12), role: 'admin', status: 'active' });
     console.log('Administrator created:', email);
   } else {
     console.log('Administrator email already exists; seed does not modify it.');

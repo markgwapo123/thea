@@ -46,12 +46,13 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '32kb' }));
+// Allow small admin-uploaded brand logos as base64; reject oversized requests.
+app.use(express.json({ limit: '600kb' }));
 app.use(cookieParser());
 const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 25, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many attempts. Try again later.' } });
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const validId = id => mongoose.isValidObjectId(id);
-const safe = u => ({ _id: u._id, fullName: u.fullName, email: u.email, studentId: u.studentId || '', yearLevel: u.yearLevel, department: u.department, role: u.role, status: u.status });
+const safe = u => ({ _id: u._id, fullName: u.fullName, email: u.email, studentId: u.studentId || '', yearLevel: u.yearLevel, department: u.department, role: u.role, status: u.status, registrationNote: u.registrationNote || '' });
 // For a single-origin app, Lax cookies avoid unnecessary third-party cookie blocking.
 // Set CROSS_SITE_COOKIES=true only when a separately hosted HTTPS frontend is approved.
 const cookieSameSite = process.env.CROSS_SITE_COOKIES === 'true' ? 'none' : 'lax';
@@ -71,21 +72,38 @@ const DEFAULT_LANDING = {
   ]
 };
 const landingPage = async () => (await Setting.findOne({ key:'landingPage' }))?.value || DEFAULT_LANDING;
+const DEFAULT_BRANDING = { name: "THE HAVEN: PEER FACILITATORS' COMMUNITY", logoDataUrl: null };
+const branding = async () => ({...DEFAULT_BRANDING, ...((await Setting.findOne({key:'branding'}))?.value || {})});
+const brandImageLimit = 350 * 1024;  // 350 KB after base64 decoding
+const validBrandImage = uri => {
+  if(typeof uri !== 'string')return false;
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(uri);
+  if(!match || match[2].length > Math.ceil(brandImageLimit * 4 / 3) + 8)return false;
+  const bytes = Buffer.from(match[2],'base64');
+  if(!bytes.length || bytes.length > brandImageLimit || bytes.toString('base64') !== match[2])return false;
+  if(match[1] === 'png') return bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'));
+  if(match[1] === 'jpeg') return bytes[0]===0xff && bytes[1]===0xd8 && bytes[2]===0xff;
+  return bytes.toString('ascii',0,4)==='RIFF' && bytes.toString('ascii',8,12)==='WEBP';
+};
 const validLandingText = (value,min,max) => typeof value==='string' && value.trim().length>=min && value.trim().length<=max;
 const audit = async (actorId, action, entityType, entityId, details = '') => AuditLog.create({ actorId, action, entityType, entityId, details });
 const notify = async (userId, title, message) => Notification.create({ userId, title, message });
 
-const auth = wrap(async (req, res, next) => {
+// Pending/rejected users may identify themselves to view their registration status.
+const sessionAuth = wrap(async (req, res, next) => {
   const token = req.cookies.haven_token;
   if (!token) return fail(res, 'Please sign in.', 401);
   let payload;
   try { payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }); }
   catch { return fail(res, 'Session expired. Please sign in.', 401); }
   const user = await User.findById(payload.sub);
-  if (!user || user.status !== 'active') return fail(res, 'Account unavailable.', 401);
+  if (!user || user.status === 'disabled') return fail(res, 'Account unavailable.', 401);
   req.user = user;
   next();
 });
+const auth = (req, res, next) => sessionAuth(req, res, () => (
+  req.user.status === 'active' ? next() : fail(res, 'Administrator approval required before accessing the dashboard.', 403)
+));
 const onlyAdmin = (req, res, next) => req.user.role === 'admin' ? next() : fail(res, 'Administrator permission required.', 403);
 const onlyManager = wrap(async (req, res, next) => {
   if (req.user.role === 'admin' || await ClubStaff.exists({ userId: req.user._id })) return next();
@@ -100,20 +118,46 @@ app.post('/api/auth/register', authLimit, wrap(async (req, res) => {
   const fullName = clean(req.body.fullName, 100), email = clean(req.body.email, 254).toLowerCase();
   const studentId = clean(req.body.studentId, 50), password = String(req.body.password || '');
   if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !studentId || password.length < 8 || password.length > 128) return fail(res, 'Enter your name, valid email, student ID and password (8–128 characters).');
-  const user = await User.create({ fullName, email, studentId, passwordHash: await bcrypt.hash(password, 12), department: clean(req.body.department, 100), yearLevel: clean(req.body.yearLevel, 40) });
+  const user = await User.create({ fullName, email, studentId, passwordHash: await bcrypt.hash(password, 12), department: clean(req.body.department, 100), yearLevel: clean(req.body.yearLevel, 40), role: 'student', status: 'pending' });
   res.cookie('haven_token', jwt.sign({ sub: String(user._id) }, process.env.JWT_SECRET, { expiresIn: '7d' }), cookieOpts);
-  res.status(201).json({ user: safe(user) });
+  res.status(201).json({ user: safe(user), message: 'Registration submitted. An administrator must approve your account.' });
 }));
 app.post('/api/auth/login', authLimit, wrap(async (req, res) => {
   const email = clean(req.body.email, 254).toLowerCase();
   const user = await User.findOne({ email }).select('+passwordHash');
   const matches = user ? await bcrypt.compare(String(req.body.password || ''), user.passwordHash) : await bcrypt.compare(String(req.body.password || ''), '$2a$12$7EqJtq98hPqEX7fNZaFWoOMghwbxAmqszuRvMyZyB4bwbF/4IyLJa');
-  if (!user || !matches || user.status !== 'active') return fail(res, 'Incorrect email or password.', 401);
+  if (!user || !matches || user.status === 'disabled') return fail(res, 'Incorrect email or password.', 401);
   res.cookie('haven_token', jwt.sign({ sub: String(user._id) }, process.env.JWT_SECRET, { expiresIn: '7d' }), cookieOpts);
   res.json({ user: safe(user) });
 }));
 app.post('/api/auth/logout', (req, res) => { res.clearCookie('haven_token', { ...cookieOpts, maxAge: undefined }); res.json({ ok: true }); });
-app.get('/api/me', auth, wrap(async (req, res) => res.json({ user: safe(req.user), staff: await ClubStaff.find({ userId: req.user._id }).populate('clubId', 'name') })));
+app.get('/api/me', sessionAuth, wrap(async (req, res) => res.json({ user: safe(req.user), staff: await ClubStaff.find({ userId: req.user._id }).populate('clubId', 'name') })));
+
+
+// User-only profile updates. Never accept role, status or approval fields from the client.
+app.put('/api/me/profile', auth, wrap(async (req, res) => {
+  const fullName = clean(req.body.fullName, 100);
+  const department = clean(req.body.department, 100);
+  const yearLevel = clean(req.body.yearLevel, 40);
+  if(fullName.length < 2) return fail(res, 'Full name must contain at least two characters.');
+  req.user.fullName = fullName;
+  req.user.department = department;
+  req.user.yearLevel = yearLevel;
+  await req.user.save();
+  await audit(req.user._id,'profile_updated','User',req.user._id);
+  res.json({user:safe(req.user)});
+}));
+app.put('/api/me/password', auth, authLimit, wrap(async (req, res) => {
+  const currentPassword=String(req.body.currentPassword||'');
+  const newPassword=String(req.body.newPassword||'');
+  if(newPassword.length < 8 || newPassword.length > 128) return fail(res,'New password must contain 8 to 128 characters.');
+  const user=await User.findById(req.user._id).select('+passwordHash');
+  if(!await bcrypt.compare(currentPassword,user.passwordHash))return fail(res,'Current password incorrect.',403);
+  user.passwordHash=await bcrypt.hash(newPassword,12);
+  await user.save();
+  await audit(req.user._id,'password_changed','User',req.user._id);
+  res.json({ok:true});
+}));
 
 app.get('/api/clubs', wrap(async (req, res) => {
   const clubs = await Club.find({ status: { $ne: 'archived' } }).sort({ createdAt: 1 }).lean();
@@ -152,7 +196,7 @@ app.patch('/api/clubs/:id', auth, onlyAdmin, wrap(async (req, res) => {
   res.json({ club });
 }));
 
-app.get('/api/applications', auth, wrap(async (req, res) => {
+app.get('/api/applications', auth, onlyAdmin, wrap(async (req, res) => {
   let filter = {};
   if (req.query.mine === '1') filter.studentId = req.user._id;
   else if (req.user.role !== 'admin') {
@@ -163,7 +207,7 @@ app.get('/api/applications', auth, wrap(async (req, res) => {
   const applications = await Application.find(filter).populate('studentId', 'fullName email studentId department yearLevel').populate('clubId', 'name category capacity memberCount').sort({ createdAt: -1 }).lean();
   res.json({ applications });
 }));
-app.post('/api/applications', auth, wrap(async (req, res) => {
+app.post('/api/applications', auth, onlyAdmin, wrap(async (req, res) => {
   if (!validId(req.body.clubId)) return fail(res, 'Select a valid club.');
   const club = await Club.findById(req.body.clubId);
   if (!club || club.status !== 'open') return fail(res, 'Registration is not open for this club.');
@@ -177,14 +221,14 @@ app.post('/api/applications', auth, wrap(async (req, res) => {
   await audit(req.user._id, 'application_submitted', 'Application', application._id);
   res.status(201).json({ application });
 }));
-app.patch('/api/applications/:id/cancel', auth, wrap(async (req, res) => {
+app.patch('/api/applications/:id/cancel', auth, onlyAdmin, wrap(async (req, res) => {
   if (!validId(req.params.id)) return fail(res, 'Invalid application ID.');
-  const application = await Application.findOneAndUpdate({ _id: req.params.id, studentId: req.user._id, status: { $in: ['pending','waitlisted'] } }, { $set: { status: 'cancelled' } }, { new: true });
+  const application = await Application.findOneAndUpdate({ _id: req.params.id, status: { $in: ['pending','waitlisted'] } }, { $set: { status: 'cancelled' } }, { new: true });
   if (!application) return fail(res, 'Only pending or waitlisted applications may be cancelled.', 409);
   await audit(req.user._id, 'application_cancelled', 'Application', application._id);
   res.json({ application });
 }));
-app.patch('/api/applications/:id/review', auth, wrap(async (req, res) => {
+app.patch('/api/applications/:id/review', auth, onlyAdmin, wrap(async (req, res) => {
   if (!validId(req.params.id)) return fail(res, 'Invalid application ID.');
   const status = req.body.status;
   if (!['approved','rejected','waitlisted','under_review'].includes(status)) return fail(res, 'Invalid review decision.');
@@ -217,7 +261,7 @@ app.patch('/api/applications/:id/review', auth, wrap(async (req, res) => {
   res.json({ ok: true, status: finalStatus });
 }));
 
-app.get('/api/memberships', auth, wrap(async (req, res) => {
+app.get('/api/memberships', auth, onlyAdmin, wrap(async (req, res) => {
   let filter;
   if (req.query.all === '1') {
     if (req.user.role !== 'admin') return fail(res, 'Administrator permission required to view all memberships.', 403);
@@ -238,24 +282,39 @@ app.get('/api/memberships', auth, wrap(async (req, res) => {
   const memberships = await query;
   res.json({ memberships });
 }));
-app.get('/api/staff', auth, onlyManager, wrap(async (req, res) => {
+app.get('/api/staff', auth, onlyAdmin, wrap(async (req, res) => {
   const filter = req.user.role === 'admin' ? {} : { userId: req.user._id };
   const staff = await ClubStaff.find(filter).populate('userId', 'fullName email').populate('clubId', 'name');
   res.json({ staff });
 }));
 app.post('/api/staff', auth, onlyAdmin, wrap(async (req, res) => {
   if (!validId(req.body.userId) || !validId(req.body.clubId) || !['adviser','officer'].includes(req.body.role)) return fail(res, 'Valid user, club and staff role required.');
-  if (!(await User.exists({ _id: req.body.userId })) || !(await Club.exists({ _id: req.body.clubId }))) return fail(res, 'User or club not found.', 404);
+  if (!(await User.exists({ _id: req.body.userId, status:'active', role:'student' })) || !(await Club.exists({ _id: req.body.clubId, status: { $ne:'archived' } }))) return fail(res, 'Approved user or club not found.', 404);
   const staff = await ClubStaff.findOneAndUpdate({ userId: req.body.userId, clubId: req.body.clubId, role: req.body.role }, { $setOnInsert: { userId: req.body.userId, clubId: req.body.clubId, role: req.body.role } }, { upsert: true, new: true });
   await audit(req.user._id, 'club_staff_assigned', 'ClubStaff', staff._id);
   res.status(201).json({ staff });
 }));
 
-app.get('/api/announcements', wrap(async (req, res) => {
+
+app.delete('/api/staff/:id',auth,onlyAdmin,wrap(async(req,res)=>{
+  if(!validId(req.params.id))return fail(res,'Invalid staff assignment.');
+  const staff=await ClubStaff.findByIdAndDelete(req.params.id);
+  if(!staff)return fail(res,'Staff assignment not found.',404);
+  await audit(req.user._id,'club_staff_removed','ClubStaff',staff._id);
+  res.json({ok:true});
+}));
+// Approved accounts may view public-facing leadership names for each club.
+app.get('/api/leadership',auth,wrap(async(req,res)=>{
+  const staff=await ClubStaff.find().populate('userId','fullName status').populate('clubId','name status').lean();
+  res.json({leaders:staff.filter(s=>s.userId?.status==='active'&&s.clubId&&s.clubId.status!=='archived')
+    .map(s=>({_id:s._id,role:s.role,fullName:s.userId.fullName,clubName:s.clubId.name,clubId:s.clubId._id}))});
+}));
+
+app.get('/api/announcements', auth, wrap(async (req, res) => {
   const announcements = await Announcement.find().populate('clubId','name').populate('authorId','fullName').sort({ createdAt: -1 }).limit(40);
   res.json({ announcements });
 }));
-app.post('/api/announcements', auth, wrap(async (req, res) => {
+app.post('/api/announcements', auth, onlyAdmin, wrap(async (req, res) => {
   const title = clean(req.body.title, 160), body = clean(req.body.body, 3000), clubId = req.body.clubId || null;
   if (title.length < 3 || body.length < 8) return fail(res, 'Announcement title and message are required.');
   if (!clubId && req.user.role !== 'admin') return fail(res, 'Only administrators can publish school-wide announcements.', 403);
@@ -275,6 +334,35 @@ app.patch('/api/notifications/:id/read', auth, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+
+// Only an existing administrator can create another administrator. Public signup never grants roles.
+app.post('/api/admin/accounts',auth,onlyAdmin,authLimit,wrap(async(req,res)=>{
+  const fullName=clean(req.body.fullName,100),email=clean(req.body.email,254).toLowerCase();
+  const password=String(req.body.password||'');
+  if(fullName.length<2||!(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))||password.length<12||password.length>128)
+    return fail(res,'Enter admin name, email and password of 12–128 characters.');
+  const user=await User.create({fullName,email,passwordHash:await bcrypt.hash(password,12),role:'admin',status:'active'});
+  await audit(req.user._id,'administrator_created','User',user._id);
+  res.status(201).json({user:safe(user)});
+}));
+app.patch('/api/users/:id/registration',auth,onlyAdmin,wrap(async(req,res)=>{
+  if(!validId(req.params.id))return fail(res,'Invalid account ID.');
+  const decision=req.body.decision;
+  const note=clean(req.body.note,300);
+  if(!['approved','rejected'].includes(decision))return fail(res,'Choose Approved or Rejected.');
+  const changes=decision==='approved'
+    ? {status:'active',registrationNote:'',approvedAt:new Date(),approvedBy:req.user._id}
+    : {status:'rejected',registrationNote:note};
+  // Atomic status filter stops two administrators from deciding the same account concurrently.
+  const user=await User.findOneAndUpdate({
+    _id:req.params.id,role:'student',status:{$in:['pending','rejected']}
+  },{$set:changes},{new:true,runValidators:true});
+  if(!user)return fail(res,'Account not found or has already been approved.',409);
+  await audit(req.user._id,'account_registration_'+decision,'User',user._id);
+  if(decision==='approved')await notify(user._id,'Your registration is approved','Welcome! You can now access your community dashboard.');
+  res.json({user:safe(user)});
+}));
+
 app.get('/api/users', auth, onlyAdmin, wrap(async (req, res) => {
   res.json({ users: (await User.find().sort({ createdAt: -1 }).limit(500)).map(safe) });
 }));
@@ -283,12 +371,18 @@ app.patch('/api/users/:id', auth, onlyAdmin, wrap(async (req, res) => {
   const status = req.body.status;
   if (!['active','disabled'].includes(status)) return fail(res, 'Invalid account status.');
   if (String(req.user._id) === req.params.id && status === 'disabled') return fail(res, 'You cannot disable your own admin account.');
-  const user = await User.findByIdAndUpdate(req.params.id, { $set: { status } }, { new: true });
-  if (!user) return fail(res, 'User not found.', 404);
+  const current = await User.findById(req.params.id);
+  if(!current)return fail(res,'User not found.',404);
+  // Prevent bypassing the approval queue via this legacy activation endpoint.
+  if(status==='active'&&current.status!=='disabled')return fail(res,'Use the registration approval action.',403);
+  if(status==='disabled'&&current.status!=='active')return fail(res,'Only approved active accounts may be disabled.',409);
+  current.status=status;
+  await current.save();
+  const user=current;
   await audit(req.user._id, 'user_status_changed', 'User', user._id, status);
   res.json({ user: safe(user) });
 }));
-app.get('/api/stats', auth, onlyManager, wrap(async (req, res) => {
+app.get('/api/stats', auth, onlyAdmin, wrap(async (req, res) => {
   const scopes = await scopeIds(req.user);
   const clubFilter = scopes === null ? {} : { _id: { $in: scopes } };
   const appFilter = scopes === null ? {} : { clubId: { $in: scopes } };
@@ -298,8 +392,19 @@ app.get('/api/stats', auth, onlyManager, wrap(async (req, res) => {
   res.json({ stats: { clubs, applications, memberships, students: members, pending: await Application.countDocuments({ ...appFilter, status: { $in: ['pending','under_review'] } }) } });
 }));
 app.get('/api/settings', wrap(async(req,res)=>{
-  const [academicYear,content]=await Promise.all([year(),landingPage()]);
-  res.json({academicYear,landingPage:content});
+  const [academicYear,content,brand]=await Promise.all([year(),landingPage(),branding()]);
+  res.json({academicYear,landingPage:content,branding:brand});
+}));
+app.put('/api/settings/branding',auth,onlyAdmin,authLimit,wrap(async(req,res)=>{
+  const name=clean(req.body.name,100);
+  if(name.length<2||name.length>100)return fail(res,'Web app name must contain 2–100 characters.');
+  const previous=await branding();
+  const logoDataUrl=req.body.logoDataUrl===undefined?previous.logoDataUrl:req.body.logoDataUrl;
+  if(logoDataUrl!==null&&!validBrandImage(logoDataUrl))return fail(res,'Upload a valid PNG, JPEG or WebP logo up to 350KB.');
+  const value={name,logoDataUrl};
+  await Setting.updateOne({key:'branding'},{$set:{value}},{upsert:true});
+  await audit(req.user._id,'branding_updated','Setting',null,'Web app name or logo changed');
+  res.json({branding:value});
 }));
 app.put('/api/settings/landing-page',auth,onlyAdmin,wrap(async(req,res)=>{
   const {eyebrow,heading,intro,cards}=req.body||{};
