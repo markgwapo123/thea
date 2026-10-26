@@ -331,3 +331,13 @@ input:disabled{background:#f5f3ef;color:#777268}
   .public-logo small{font-size:8px;letter-spacing:.03em}
   .public-nav button.plain{min-height:40px}
 }
+
+/* Landing benefits: icon-free, readable and compact. Admin landing content editor. */
+.feature-card.no-icon{display:flex;flex-direction:column;justify-content:center;gap:8px;min-height:0;padding:20px 22px;background:#fff;border-color:#e9dec9}
+.feature-card.no-icon h3{margin:0!important;color:#342c20!important;font-size:16px;line-height:1.35;opacity:1!important;visibility:visible!important}
+.feature-card.no-icon p{margin:0!important;color:#645c4f!important;font-size:13px;line-height:1.65;opacity:1!important;visibility:visible!important}
+.landing-settings-panel{margin-top:20px}
+.landing-editor-group{border:1px solid #e9dec9;border-radius:13px;padding:15px 16px 3px;margin:16px 0;background:#fffdf8}
+.landing-editor-group h3{margin:0 0 14px;color:#644b24;font-size:14px}
+.public-hero.hero-simple{min-height:330px;padding-top:44px;padding-bottom:52px}
+@media(max-width:640px){.feature-card.no-icon{padding:18px 19px}.public-hero.hero-simple{min-height:auto;padding:36px 18px 45px}}

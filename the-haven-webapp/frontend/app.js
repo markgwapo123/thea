@@ -15,10 +15,24 @@
   const alphabet = ['❋','✦','◈','✳','❃','✧','✺'];
   const options = (rows, label='name') => rows.map(x => `<option value="${escapeHtml(id(x))}">${escapeHtml(x[label])}</option>`).join('');
   const status = val => `<span class="badge ${escapeHtml(val)}">${escapeHtml(String(val || '').replaceAll('_',' '))}</span>`;
+
+  // Default landing copy until the administrator saves custom text in settings.
+  const DEFAULT_LANDING = {
+    eyebrow: 'WHAT WE BELIEVE IN',
+    heading: 'Your community starts here.',
+    intro: 'One welcoming place to discover shared interests, connect with fellow students, and follow your application journey.',
+    cards: [
+      { title: 'Meaningful Connections', description: 'Discover a welcoming community built around listening, understanding, and support.' },
+      { title: 'Growth & Leadership', description: 'Explore opportunities to learn new skills and develop as a student facilitator.' },
+      { title: 'Simple Registration', description: 'Apply online, receive updates, and track your club journey in one convenient place.' }
+    ]
+  };
+  const landingContent = () => state.settings?.landingPage || DEFAULT_LANDING;
+  const renderLandingCard = item => `<div class="feature-card no-icon"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p></div>`;
   const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
 
   const demoSeed = () => ({
-    currentUser:'u-student', academicYear:'2026–2027', seq:20,
+    currentUser:'u-student', academicYear:'2026–2027', landingPage:DEFAULT_LANDING, seq:20,
     users:[
       { _id:'u-student', fullName:'Alex Reyes', studentId:'FBC-2026-001', email:'alex@example.edu', department:'College of Arts & Sciences', yearLevel:'2nd Year', role:'student', status:'active' },
       { _id:'u-adviser', fullName:'Dr. Maria Santos', studentId:'', email:'adviser@example.edu', department:'Student Affairs', yearLevel:'', role:'student', status:'active' },
@@ -114,7 +128,12 @@
       const apps=demo.applications.filter(a=>admin||isStaff(a.clubId));
       return {stats:{clubs:demo.clubs.filter(c=>admin||isStaff(c._id)).length,applications:apps.length,memberships:demo.memberships.filter(m=>admin||isStaff(m.clubId)).length,students:admin?demo.users.filter(u=>u.role==='student').length:null,pending:apps.filter(a=>['pending','under_review'].includes(a.status)).length}};
     }
-    if(cleanPath==='/settings'&&method==='GET')return {academicYear:demo.academicYear};
+    if(cleanPath==='/settings'&&method==='GET')return {academicYear:demo.academicYear,landingPage:demo.landingPage||DEFAULT_LANDING};
+    if(cleanPath==='/settings/landing-page'&&method==='PUT'){
+      if(!admin)err('Administrator access required.');
+      if(!payload||!Array.isArray(payload.cards)||payload.cards.length!==3)err('Exactly three cards required.');
+      demo.landingPage=payload;return saved({landingPage:demo.landingPage});
+    }
     if(cleanPath==='/settings/academic-year'&&method==='PUT'){if(!admin)err('Administrator only.');demo.academicYear=payload.academicYear;return saved({academicYear:demo.academicYear});}
     return err(`Demo endpoint not found: ${method} ${path}`);
   }
@@ -181,7 +200,7 @@
   function publicSite(){
     const onClubs=state.route==='clubs';
     const body=onClubs?`<div class="public-clubs">${topHeading('Explore our communities','Find a club where you can learn, connect, and make a difference.')} ${searchAndFilters()}<div id="club-results" class="club-grid">${filterClubs().map(card).join('')||empty('⌕','No clubs found','Try a different search or category.')}</div></div>`:
-      `<section class="public-hero"><div><div class="eyebrow">WELCOME TO A COMMUNITY THAT CARES</div><h1>A place to <em>belong.</em><br>A space to <em>grow.</em></h1><p>Connect with people who inspire you. Discover student communities, explore opportunities, and begin your journey with THE HAVEN: Peer Facilitators' Community.</p><div class="hero-actions"><button class="button primary" data-action="go-clubs">Explore Clubs &nbsp;→</button><button class="button secondary" data-action="${state.user?'go-dashboard':'register'}">${state.user?'My Dashboard':'Join the Community'}</button></div><div class="hero-facts"><span>Discover communities</span><span>Apply in a few steps</span><span>Track applications</span></div><p class="helper" style="margin-top:22px">✦ Fellowship Baptist College &nbsp; · &nbsp; Stronger together</p></div><div class="public-art"><img src="${LOGO}" alt="THE HAVEN official seal"></div></section><section class="public-info"><div class="public-inner"><div class="section-intro"><div class="eyebrow">WHAT WE BELIEVE IN</div><h2>Your community starts here.</h2><p>One welcoming place to discover shared interests, connect with fellow students, and follow your application journey.</p></div><div class="feature-grid"><div class="feature-card"><i>♡</i><h3>Meaningful Connections</h3><p>Discover a welcoming community built around listening, understanding, and support.</p></div><div class="feature-card"><i>✧</i><h3>Growth & Leadership</h3><p>Explore opportunities to learn new skills and develop as a student facilitator.</p></div><div class="feature-card"><i>❋</i><h3>Simple Registration</h3><p>Apply online, receive updates, and track your club journey in one convenient place.</p></div></div></div></section>`;
+      `<section class="public-hero hero-simple"><div><div class="eyebrow">WELCOME TO A COMMUNITY THAT CARES</div><div class="hero-actions"><button class="button primary" data-action="go-clubs">Explore Clubs &nbsp;→</button><button class="button secondary" data-action="${state.user?'go-dashboard':'register'}">${state.user?'My Dashboard':'Join the Community'}</button></div><div class="hero-facts"><span>Discover communities</span><span>Apply in a few steps</span><span>Track applications</span></div><p class="helper" style="margin-top:22px">✦ Fellowship Baptist College &nbsp; · &nbsp; Stronger together</p></div><div class="public-art"><img src="${LOGO}" alt="THE HAVEN official seal"></div></section><section class="public-info"><div class="public-inner"><div class="section-intro"><div class="eyebrow">${escapeHtml(landingContent().eyebrow)}</div><h2>${escapeHtml(landingContent().heading)}</h2><p>${escapeHtml(landingContent().intro)}</p></div><div class="feature-grid">${landingContent().cards.map(renderLandingCard).join('')}</div></div></section>`;
     return `<div class="public-wrap"><header class="public-header"><a class="public-logo" href="#/home"><img src="${LOGO}" alt="THE HAVEN Logo"><span><b>THE HAVEN</b><small>PEER FACILITATORS' COMMUNITY</small></span></a><nav class="public-nav" aria-label="Public navigation"><button class="plain" data-action="go-home">Home</button><button class="plain" data-action="go-clubs">Explore</button><button class="button primary sm" data-action="${state.user?'go-dashboard':'login'}">${state.user?'Dashboard':'Log In'}</button></nav></header><main id="main-content">${body}</main><footer class="public-footer">© ${new Date().getFullYear()} THE HAVEN · Fellowship Baptist College · Made for our community</footer></div>`;
   }
   function sideNav(){
@@ -225,7 +244,12 @@
   function manageClubsPage(){if(!isAdmin())return denied();return topHeading('Club Management','Create, update and control club registration availability.',`<button class="button primary sm" data-action="create-club">+ Create Club</button>`)+`<div class="table-wrap"><table><thead><tr><th>Club</th><th>Category</th><th>Capacity</th><th>Status</th><th>Actions</th></tr></thead><tbody>${state.clubs.map(c=>`<tr><td><div class="table-person">${escapeHtml(c.name)}</div></td><td>${escapeHtml(c.category)}</td><td>${c.memberCount}/${c.capacity}</td><td>${status(c.status)}</td><td><button class="button secondary sm" data-action="edit-club" data-id="${id(c)}">Edit Club</button></td></tr>`).join('')}</tbody></table></div>`;}
   function adminUsersPage(){if(!isAdmin())return denied();return topHeading('User Management','View student accounts and assign club officers or advisers.',`<button class="button primary sm" data-action="assign-staff">+ Assign Club Staff</button>`)+`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.users.map(u=>`<tr><td class="table-person">${escapeHtml(u.fullName)}</td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.role)}</td><td>${status(u.status)}</td><td>${u._id===state.user._id?'—':`<button class="button ghost sm" data-action="toggle-user" data-id="${id(u)}">${u.status==='active'?'Disable':'Activate'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;}
   function reportsPage(){if(!isAdmin())return denied();return topHeading('Reports & Analytics','School-wide snapshots and registration report exports.',`<button class="button primary sm" data-action="download-report">↓ Export Applications CSV</button>`)+`<div class="stat-grid" style="margin:0 0 24px">${[['Clubs',state.stats.clubs||0,'Active club records','◇'],['Applications',state.stats.applications||0,'All applications','▤'],['Memberships',state.stats.memberships||0,'Confirmed members','♧'],['Students',state.stats.students||0,'Registered students','✦']].map(x=>statCard(...x)).join('')}</div><div class="panel"><h3 class="panel-title">Application Status Breakdown</h3>${['pending','approved','rejected','waitlisted','cancelled'].map(st=>{const count=staffApps().filter(a=>a.status===st).length;const pct=staffApps().length?Math.round(count/staffApps().length*100):0;return `<div style="display:grid;grid-template-columns:105px 1fr 35px;gap:13px;align-items:center;margin:14px 0"><span class="small muted" style="text-transform:capitalize">${st}</span><div style="height:10px;background:#f2eee6;border-radius:30px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#b89552;border-radius:30px"></div></div><b class="small">${count}</b></div>`}).join('')}</div>`;}
-  function settingsPage(){if(!isAdmin())return denied();return topHeading('System Settings','Manage the current academic year and review system configuration.')+`<div class="cards-two"><div class="panel"><h3 class="panel-title">Academic Year</h3><p class="small muted">Current active registration academic year</p><div style="font:700 28px 'Playfair Display',serif;margin:16px 0">${escapeHtml(state.settings.academicYear)}</div><button class="button secondary sm" data-action="edit-year">Update Academic Year</button></div><div class="panel"><h3 class="panel-title">System Configuration</h3><p class="small muted">Application and hosting settings</p><div class="divider"></div><p class="small">API: <b>${cfg.DEMO_MODE?'Local Browser Demo':'Express / MongoDB Atlas'}</b></p><p class="small">Logo: <b>Official THE HAVEN seal</b></p><p class="small">Splash screen: <b>2 seconds / pulse</b></p></div></div>`;}
+  function settingsPage(){
+    if(!isAdmin())return denied();
+    const landing=landingContent();
+    return topHeading('System Settings','Manage academic year and public landing-page content.')+
+      `<div class="cards-two"><div class="panel"><h3 class="panel-title">Academic Year</h3><p class="small muted">Current active registration academic year</p><div style="font:700 28px 'Playfair Display',serif;margin:16px 0">${escapeHtml(state.settings.academicYear)}</div><button class="button secondary sm" data-action="edit-year">Update Academic Year</button></div><div class="panel"><h3 class="panel-title">System Configuration</h3><p class="small muted">Application and hosting settings</p><div class="divider"></div><p class="small">API: <b>${cfg.DEMO_MODE?'Local Browser Demo':'Express / MongoDB Atlas'}</b></p><p class="small">Logo: <b>Official THE HAVEN seal</b></p><p class="small">Splash screen: <b>2 seconds / pulse</b></p></div></div><div class="panel landing-settings-panel"><h3 class="panel-title">Landing Page Content</h3><p class="small muted">Update the public section heading, description, and all three card titles and descriptions.</p><div class="divider"></div><p class="small"><b>Current heading:</b> ${escapeHtml(landing.heading)}</p><button class="button secondary sm" data-action="edit-landing">Edit Landing Page</button></div>`;
+  }
   function denied(){return empty('⊘','Access restricted','Your account does not have permission to view this page.');}
   function view(){return ({dashboard:dashboard,clubs:clubsPage,applications:applicationsPage,memberships:membershipsPage,announcements:announcementsPage,notifications:notificationsPage,'staff-applications':staffApplicationsPage,'staff-members':membersPage,'admin-clubs':manageClubsPage,'admin-users':adminUsersPage,reports:reportsPage,settings:settingsPage}[state.route]||dashboard)();}
   function render(){
@@ -249,6 +273,23 @@
   }
   function createAnnouncement(){const clubs=state.clubs.filter(c=>isStaffClub(c._id));const clubOpts=[...(isAdmin()?[{value:'',label:'School-wide'}]:[]),...clubs.map(c=>({value:id(c),label:c.name}))];showModal('Create Announcement',choose('clubId','Post To',clubOpts)+field('title','Title','text','','required')+textarea('body','Announcement Message','','required minlength="8"'),data=>mutation('POST','/announcements',data,'Announcement posted.'),{submitLabel:'Publish Announcement'});}
   function assignStaff(){if(!state.users.length){toast('No users available.',true);return;}showModal('Assign Club Staff',choose('userId','Select User',state.users.map(u=>({value:id(u),label:`${u.fullName} (${u.email})` })))+choose('clubId','Club',state.clubs.map(c=>({value:id(c),label:c.name})))+choose('role','Assigned Role',[{value:'adviser',label:'Club Adviser'},{value:'officer',label:'Club Officer'}])+`<div class="banner">Only Club Advisers (and administrators) can approve applications. Officers can manage assigned-club announcements and view members.</div>`,data=>mutation('POST','/staff',data,'Club staff assigned.'),{submitLabel:'Assign Staff'});}
+  function editLanding(){
+    if(!isAdmin())return;
+    const section=landingContent();
+    let form=field('eyebrow','Section Label','text',section.eyebrow,'required minlength="2" maxlength="70"')
+      +field('heading','Section Heading','text',section.heading,'required minlength="2" maxlength="130"')
+      +textarea('intro','Section Description',section.intro,'required minlength="5" maxlength="400"');
+    section.cards.forEach((card,index)=>{
+      const n=index+1;
+      form+=`<div class="landing-editor-group"><h3>Card ${n}</h3>`
+        +field(`card${n}Title`,'Card Title','text',card.title,'required minlength="2" maxlength="90"')
+        +textarea(`card${n}Description`,'Card Description',card.description,'required minlength="5" maxlength="400"')+'</div>';
+    });
+    showModal('Edit Landing Page',form,data=>mutation('PUT','/settings/landing-page',{
+      eyebrow:data.eyebrow,heading:data.heading,intro:data.intro,
+      cards:[1,2,3].map(n=>({title:data[`card${n}Title`],description:data[`card${n}Description`]}))
+    },'Landing page updated.'),{wide:true,submitLabel:'Save Landing Page'});
+  }
   function editYear(){showModal('Update Academic Year',field('academicYear','Current Academic Year','text',state.settings.academicYear,'required pattern="[0-9]{4}[-–][0-9]{4}"')+'<p class="helper">Example: 2026–2027. Existing applications retain their original academic year.</p>',data=>mutation('PUT','/settings/academic-year',data,'Academic year updated.'));}
   function csvExport(){const rows=[['Student Name','Student ID','Email','Club','Academic Year','Application Status','Submitted Date','Remarks'],...staffApps().map(a=>[a.studentId?.fullName,a.studentId?.studentId,a.studentId?.email,a.clubId?.name,a.academicYear,a.status,date(a.createdAt),a.remarks||''])];const quote=v=>{const s=String(v??'');const safe=/^[=+\-@\t\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"'};const csv='\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download=`THE_HAVEN_Applications_${new Date().toISOString().slice(0,10)}.csv`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Application report exported.');}
   function closeModal(){
@@ -281,6 +322,7 @@
     if(type==='assign-staff'){assignStaff();return;}
     if(type==='toggle-user'){const u=state.users.find(x=>id(x)===itemId);if(u&&confirm(`${u.status==='active'?'Disable':'Activate'} ${u.fullName}?`))await mutation('PATCH',`/users/${itemId}`,{status:u.status==='active'?'disabled':'active'},'Account status updated.');return;}
     if(type==='edit-year'){editYear();return;}
+    if(type==='edit-landing'){editLanding();return;}
     if(type==='download-report'){csvExport();return;}
     if(type==='mark-read'){await mutation('PATCH',`/notifications/${itemId}/read`,{},'Notification marked as read.');return;}
     if(type==='view-members'){const c=clubOf(itemId);try{const result=await get(`/memberships?clubId=${itemId}`);showModal(`${c.name} Members`,result.memberships.length?`<div class="table-wrap"><table><thead><tr><th>Member</th><th>Student ID</th><th>Joined</th></tr></thead><tbody>${result.memberships.map(m=>`<tr><td>${escapeHtml(m.studentId?.fullName)}</td><td>${escapeHtml(m.studentId?.studentId||'—')}</td><td>${date(m.joinedAt)}</td></tr>`).join('')}</tbody></table></div>`:empty('♧','No members in records','Approved members will appear here.'),async()=>closeModal(),{submitLabel:'Close',wide:true});}catch(e){toast(e.message,true);}return;}

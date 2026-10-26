@@ -59,6 +59,19 @@ const cookieOpts = { httpOnly: true, secure: production || cookieSameSite === 'n
 const clean = (v, max = 150) => String(v ?? '').trim().slice(0, max);
 const fail = (res, msg, code = 400) => res.status(code).json({ error: msg });
 const year = async () => (await Setting.findOne({ key: 'academicYear' }))?.value || '2026–2027';
+
+const DEFAULT_LANDING = {
+  eyebrow:'WHAT WE BELIEVE IN',
+  heading:'Your community starts here.',
+  intro:'One welcoming place to discover shared interests, connect with fellow students, and follow your application journey.',
+  cards:[
+    {title:'Meaningful Connections',description:'Discover a welcoming community built around listening, understanding, and support.'},
+    {title:'Growth & Leadership',description:'Explore opportunities to learn new skills and develop as a student facilitator.'},
+    {title:'Simple Registration',description:'Apply online, receive updates, and track your club journey in one convenient place.'}
+  ]
+};
+const landingPage = async () => (await Setting.findOne({ key:'landingPage' }))?.value || DEFAULT_LANDING;
+const validLandingText = (value,min,max) => typeof value==='string' && value.trim().length>=min && value.trim().length<=max;
 const audit = async (actorId, action, entityType, entityId, details = '') => AuditLog.create({ actorId, action, entityType, entityId, details });
 const notify = async (userId, title, message) => Notification.create({ userId, title, message });
 
@@ -262,7 +275,23 @@ app.get('/api/stats', auth, wrap(async (req, res) => {
   ]);
   res.json({ stats: { clubs, applications, memberships, students: members, pending: await Application.countDocuments({ ...appFilter, status: { $in: ['pending','under_review'] } }) } });
 }));
-app.get('/api/settings', wrap(async (req, res) => res.json({ academicYear: await year() })));
+app.get('/api/settings', wrap(async(req,res)=>{
+  const [academicYear,content]=await Promise.all([year(),landingPage()]);
+  res.json({academicYear,landingPage:content});
+}));
+app.put('/api/settings/landing-page',auth,onlyAdmin,wrap(async(req,res)=>{
+  const {eyebrow,heading,intro,cards}=req.body||{};
+  if(!validLandingText(eyebrow,2,70)||!validLandingText(heading,2,130)||
+     !validLandingText(intro,5,400)||!Array.isArray(cards)||cards.length!==3||
+     !cards.every(card=>card&&validLandingText(card.title,2,90)&&validLandingText(card.description,5,400))){
+    return fail(res,'Provide the section label, heading, description and exactly three valid cards.');
+  }
+  const value={eyebrow:eyebrow.trim(),heading:heading.trim(),intro:intro.trim(),
+    cards:cards.map(card=>({title:card.title.trim(),description:card.description.trim()}))};
+  await Setting.updateOne({key:'landingPage'},{$set:{value}},{upsert:true});
+  await audit(req.user._id,'landing_page_updated','Setting',null,'Public landing page content updated');
+  res.json({landingPage:value});
+}));
 app.put('/api/settings/academic-year', auth, onlyAdmin, wrap(async (req, res) => {
   const value = clean(req.body.academicYear, 20);
   if (!/^\d{4}[-–]\d{4}$/.test(value)) return fail(res, 'Use academic year format 2026–2027.');
