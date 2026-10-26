@@ -5,6 +5,17 @@
   const cfg = window.HAVEN_CONFIG || { DEMO_MODE: true, API_BASE_URL: '/api' };
   const DEMO_KEY = 'the-haven-demo-v1';
   const LOGO = './assets/haven-logo.png';
+  const DEFAULT_BRAND = "THE HAVEN: PEER FACILITATORS' COMMUNITY";
+  const brandName=()=>String(state.settings?.branding?.name||DEFAULT_BRAND);
+  const brandLogo=()=>state.settings?.branding?.logoDataUrl||LOGO;
+  const brandParts=()=>{const [a,...b]=brandName().split(':');return [a.trim(),b.join(':').trim()];};
+  function applyBranding(){
+    document.title=brandName()+' | Fellowship Baptist College';
+    const icon=document.querySelector('link[rel="icon"]');if(icon)icon.href=brandLogo();
+    const logo=document.querySelector('.splash-logo');if(logo)logo.src=brandLogo();
+    const name=document.querySelector('.splash-name');if(name)name.textContent=brandParts()[0];
+    const sub=document.querySelector('.splash-subtitle');if(sub)sub.textContent=brandParts()[1];
+  }
   const $ = sel => document.querySelector(sel);
   const escapeHtml = str => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const abbr = name => String(name || 'TH').split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
@@ -29,7 +40,7 @@
   };
   const landingContent = () => state.settings?.landingPage || DEFAULT_LANDING;
   const renderLandingCard = item => `<div class="feature-card no-icon"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p></div>`;
-  const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], allMemberships:[], memberPage:1, memberPagination:null, stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
+  const state = { user:null, staff:[], clubs:[], applications:[], memberships:[], announcements:[], notifications:[], users:[], leaders:[], clubStaff:[], allMemberships:[], memberPage:1, memberPagination:null, stats:{}, settings:{academicYear:'2026–2027'}, route:'home', category:'All', search:'', sidebar:false, busy:false };
 
   const demoSeed = () => ({
     currentUser:'u-student', academicYear:'2026–2027', landingPage:DEFAULT_LANDING, seq:20,
@@ -167,41 +178,38 @@
     state.memberPagination=result.pagination||{page,pageSize:100,total:state.allMemberships.length,pages:1};
     state.memberPage=page;
   }
-  async function fetchAll() {
-    try {
-      const [c,a,s]=await Promise.all([get('/clubs'),get('/announcements'),get('/settings')]);
-      state.clubs=c.clubs;state.announcements=a.announcements;state.settings=s;
-      if(cfg.DEMO_MODE) { const me=await get('/me');state.user=me.user||null;state.staff=me.staff||[]; }
-      else {try{const me=await get('/me');state.user=me.user;state.staff=me.staff||[];}catch{state.user=null;state.staff=[];}}
-      state.applications=[];state.memberships=[];state.notifications=[];state.users=[];state.staffApplications=[];state.allMemberships=[];state.stats={};
-      if(state.user){
-        const call = async (path,k,v) => {try{state[k]=(await get(path))[v];}catch{state[k]=k==='stats'?{}:[];}};
-        await Promise.all([call('/applications?mine=1','applications','applications'),call('/memberships','memberships','memberships'),call('/notifications','notifications','notifications')]);
-        if(state.user.role==='admin' || state.staff.length){
-          await Promise.all([call('/applications','staffApplications','applications'),call('/stats','stats','stats')]);
-          if(state.user.role==='admin'){
-            await call('/users','users','users');
-            try{await loadAllMemberships(state.memberPage);}catch{state.allMemberships=[];state.memberPagination=null;}
-            // Archived clubs remain visible to admins, but not in the public directory.
-            try{const allClubs=await get('/admin/clubs');state.clubs=allClubs.clubs;}catch{/* Retain public list if unavailable. */}
-          }
+  async function fetchAll(){
+    try{
+      const [clubs,settings]=await Promise.all([get('/clubs'),get('/settings')]);
+      state.clubs=clubs.clubs;state.settings=settings;applyBranding();
+      try{const me=await get('/me');state.user=me.user||null;state.staff=me.staff||[];}catch{state.user=null;state.staff=[];}
+      state.applications=[];state.memberships=[];state.announcements=[];state.notifications=[];
+      state.users=[];state.leaders=[];state.clubStaff=[];state.staffApplications=[];state.allMemberships=[];state.stats={};
+      if(state.user?.status==='active'){
+        const call=async(path,key,value)=>{try{state[key]=(await get(path))[value];}catch{state[key]=key==='stats'?{}:[];}};
+        await Promise.all([call('/announcements','announcements','announcements'),call('/leadership','leaders','leaders')]);
+        if(state.user.role==='admin'){
+          await Promise.all([call('/users','users','users'),call('/staff','clubStaff','staff'),call('/applications','staffApplications','applications'),call('/stats','stats','stats'),call('/notifications','notifications','notifications')]);
+          try{await loadAllMemberships(state.memberPage);}catch{state.allMemberships=[];state.memberPagination=null;}
+          try{state.clubs=(await get('/admin/clubs')).clubs;}catch{/* retain fallback */}
         }
       }
       if(state.user?.role!=='admin'){state.memberPage=1;state.memberPagination=null;}
       render();
-    } catch(err){$('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load THE HAVEN</h2><p>${escapeHtml(err.message)}</p><p>For preview, set <code>DEMO_MODE: true</code> in <code>frontend/config.js</code>.</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;}
+    }catch(err){
+      $('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load the community website</h2><p>${escapeHtml(err.message)}</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;
+    }
   }
   function canAccessRoute(route){
-    if(['home','clubs'].includes(route))return true;
-    if(!state.user)return false;
-    if(['staff-applications','staff-members'].includes(route))return isAdmin()||hasStaff();
-    if(['admin-clubs','admin-users','admin-members','reports','settings'].includes(route))return isAdmin();
-    return ['dashboard','applications','memberships','announcements','notifications'].includes(route);
+    if(!state.user)return ['home','clubs'].includes(route);
+    if(state.user.status!=='active')return route==='approval-status';
+    if(isAdmin())return ['home','clubs','dashboard','announcements','leadership','profile','notifications','applications','memberships','staff-applications','staff-members','admin-clubs','admin-members','admin-users','admin-registrations','admin-leadership','reports','settings'].includes(route);
+    return ['dashboard','leadership','profile'].includes(route);
   }
   function nav(route){
-    if(!canAccessRoute(route)){toast('You do not have permission to access this page.',true);route=state.user?'dashboard':'home';}
-    state.route=route;state.sidebar=false;
-    const hash='#/'+route;if(location.hash!==hash)location.hash=hash;
+    if(!canAccessRoute(route)){toast('Access restricted for this account.',true);route=state.user?(state.user.status==='active'?'dashboard':'approval-status'):'home';}
+    state.route=route;state.sidebar=false;const hash='#/'+route;
+    if(location.hash!==hash)location.hash=hash;
     render();window.scrollTo({top:0,behavior:'instant'});
   }
   function toast(message,isError=false){const root=$('#toast-region');const el=document.createElement('div');el.className='toast'+(isError?' error':'');el.setAttribute('role',isError?'alert':'status');el.textContent=message;root.append(el);setTimeout(()=>el.remove(),4100);}
@@ -242,19 +250,27 @@
     return `<div class="public-wrap"><header class="public-header"><a class="public-logo" href="#/home"><img src="${LOGO}" alt="THE HAVEN Logo"><span><b>THE HAVEN</b><small>PEER FACILITATORS' COMMUNITY</small></span></a><nav class="public-nav" aria-label="Public navigation"><button class="plain" data-action="go-home">Home</button><button class="plain" data-action="go-clubs">Explore</button><button class="button primary sm" data-action="${state.user?'go-dashboard':'login'}">${state.user?'Dashboard':'Log In'}</button></nav></header><main id="main-content">${body}</main><footer class="public-footer">© ${new Date().getFullYear()} THE HAVEN · Fellowship Baptist College · Made for our community</footer></div>`;
   }
   function sideNav(){
-    const common=[['dashboard','⌂','Dashboard'],['clubs','◇','Explore Clubs'],['applications','▤','My Applications'],['memberships','♧','My Clubs'],['announcements','◌','Announcements'],['notifications','♧','Notifications']];
-    const staff=[['staff-applications','▣','Application Review'],['staff-members','♙','Club Members']];
-    const admins=[['admin-clubs','▦','Manage Clubs'],['admin-members','♙','All Memberships'],['admin-users','♧','User Management'],['reports','▥','Reports'],['settings','⚙','Settings']];
-    const section=items=>`<div class="nav-list">${items.map(([r,ic,t])=>`<button class="nav-link ${state.route===r?'active':''}" data-action="navigate" data-route="${r}" ${state.route===r?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${ic}</span><span>${t}</span>${r==='notifications'&&unread()?`<span class="badge" style="margin-left:auto;padding:3px 6px">${unread()}</span>`:''}</button>`).join('')}</div>`;
-    return `<aside class="sidebar ${state.sidebar?'open':''}" aria-label="Main navigation"><a href="#/home" class="side-brand"><img src="${LOGO}" alt="Logo"><span><div class="brand-title">THE HAVEN</div><div class="brand-sub">PEER FACILITATORS' COMMUNITY</div></span></a><div class="nav-section-label">WORKSPACE</div>${section(common)}${hasStaff()||isAdmin()?`<div class="nav-section-label">CLUB MANAGEMENT</div>${section(staff)}`:''}${isAdmin()?`<div class="nav-section-label">ADMINISTRATION</div>${section(admins)}`:''}<div class="side-bottom"><div class="mini-profile"><span class="avatar">${abbr(state.user.fullName)}</span><span><div class="profile-name">${escapeHtml(state.user.fullName)}</div><div class="profile-role">${isAdmin()?'System Administrator':hasStaff()?state.staff.map(s=>s.role).join(' / '):'Student Member'}</div></span></div><button class="side-exit" data-action="logout">↪ &nbsp; Sign out</button></div></aside>`;
+    const members=[['dashboard','⌂','Dashboard'],['leadership','♙','Officers & Advisers'],['profile','⚙','Account Settings']];
+    const adminPages=[['dashboard','⌂','Dashboard'],['announcements','◌','Announcements'],['leadership','♙','Community Leadership'],['profile','⚙','My Account']];
+    const management=[['admin-registrations','▣','Registration Requests'],['admin-leadership','♧','Manage Officers'],['admin-users','♧','User Management'],['admin-clubs','▦','Manage Clubs'],['staff-applications','▣','Club Applications'],['staff-members','♙','Club Members'],['admin-members','♙','All Memberships'],['reports','▥','Reports'],['settings','⚙','System Settings']];
+    const section=rows=>`<div class="nav-list">${rows.map(([route,icon,label])=>`<button class="nav-link ${state.route===route?'active':''}" data-action="navigate" data-route="${route}" ${state.route===route?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}</div>`;
+    const [main,sub]=brandParts();
+    return `<aside class="sidebar ${state.sidebar?'open':''}" aria-label="Main navigation"><a href="#/dashboard" class="side-brand"><img src="${brandLogo()}" alt="Community logo"><span><div class="brand-title">${escapeHtml(main)}</div><div class="brand-sub">${escapeHtml(sub)}</div></span></a><div class="nav-section-label">WORKSPACE</div>${section(isAdmin()?adminPages:members)}${isAdmin()?`<div class="nav-section-label">ADMINISTRATION</div>${section(management)}`:''}<div class="side-bottom"><div class="mini-profile"><span class="avatar">${abbr(state.user.fullName)}</span><span><div class="profile-name">${escapeHtml(state.user.fullName)}</div><div class="profile-role">${isAdmin()?'Administrator':'Approved Member'}</div></span></div><button class="side-exit" data-action="logout">↪ &nbsp; Sign out</button></div></aside>`;
   }
-  const titles={dashboard:'Overview',clubs:'Explore Clubs',applications:'My Applications',memberships:'My Clubs',announcements:'Announcements',notifications:'Notifications','staff-applications':'Application Review','staff-members':'Club Members','admin-clubs':'Manage Clubs','admin-members':'All Memberships','admin-users':'User Management',reports:'Reports & Analytics',settings:'System Settings'};
+  const titles={dashboard:'Dashboard',clubs:'Explore Clubs',applications:'Applications',memberships:'Memberships',announcements:'Announcements',leadership:'Officers & Advisers',profile:'Account Settings',notifications:'Notifications','staff-applications':'Club Applications','staff-members':'Club Members','admin-clubs':'Manage Clubs','admin-members':'All Memberships','admin-users':'User Management','admin-registrations':'Registration Requests','admin-leadership':'Manage Officers & Advisers',reports:'Reports & Analytics',settings:'System Settings'};
   function shell(){
     const demoBar=cfg.DEMO_MODE?`<div class="demo-bar"><span><b>✦ Preview mode</b> · Data is stored in this browser only; no real accounts.</span><div class="demo-actions">${[['u-student','Student'],['u-adviser','Adviser'],['u-officer','Officer'],['u-admin','Admin']].map(([u,t])=>`<button data-action="demo-role" data-id="${u}" class="${demo.currentUser===u?'selected':''}">${t}</button>`).join('')}<button data-action="reset-demo">Reset</button></div></div>`:'';
-    return `<div class="app-shell">${sideNav()}<div class="overlay ${state.sidebar?'open':''}" data-action="sidebar-toggle"></div><main class="main" id="main-content"><header class="topbar"><div style="display:flex;gap:12px;align-items:center"><button class="mobile-menu-btn" data-action="sidebar-toggle" aria-label="${state.sidebar?'Close':'Open'} navigation" aria-expanded="${state.sidebar}">☰</button><div><div class="top-title">${escapeHtml(titles[state.route]||'THE HAVEN')}</div><div class="top-subtitle">${escapeHtml(state.settings.academicYear)} · Fellowship Baptist College</div></div></div><div class="top-actions"><button class="icon-button" data-action="navigate" data-route="notifications" title="Notifications" aria-label="Notifications">♧ ${unread()?'<span class="notif-dot"></span>':''}</button><span class="avatar sm">${abbr(state.user.fullName)}</span></div></header><div class="content">${demoBar}${view()}</div></main></div>`;
+    return `<div class="app-shell">${sideNav()}<div class="overlay ${state.sidebar?'open':''}" data-action="sidebar-toggle"></div><main class="main" id="main-content"><header class="topbar"><div style="display:flex;gap:12px;align-items:center"><button class="mobile-menu-btn" data-action="sidebar-toggle" aria-label="${state.sidebar?'Close':'Open'} navigation" aria-expanded="${state.sidebar}">☰</button><div><div class="top-title">${escapeHtml(titles[state.route]||'THE HAVEN')}</div><div class="top-subtitle">${escapeHtml(state.settings.academicYear)} · Fellowship Baptist College</div></div></div><div class="top-actions">${isAdmin()?`<button class="icon-button" data-action="navigate" data-route="notifications" title="Notifications" aria-label="Notifications">♧ ${unread()?'<span class="notif-dot"></span>':''}</button>`:''}<span class="avatar sm">${abbr(state.user.fullName)}</span></div></header><div class="content">${demoBar}${view()}</div></main></div>`;
   }
   function statCard(label,num,hint,ic){return `<div class="stat-card"><div class="stat-top"><span>${label}</span><span class="stat-icon">${ic}</span></div><div class="stat-number">${num}</div><div class="stat-hint">${hint}</div></div>`;}
   function dashboard(){
+    if(!isAdmin()){
+      const announcements=state.announcements||[];
+      return topHeading('Welcome, '+escapeHtml(studentName()),'Community announcements and updates.')+
+        `<div class="community-intro panel"><div><div class="eyebrow">MEMBER DASHBOARD</div><h2>Stay connected with your community.</h2><p>Latest updates from your administrators.</p></div><button class="button secondary sm" data-action="navigate" data-route="leadership">Meet Officers & Advisers</button></div>`+
+        `<div class="section-heading"><h2>Announcements</h2></div>`+
+        `<div class="community-announcement-list">${announcements.length?announcements.map(announcementCard).join(''):empty('◌','No announcements yet','Admin announcements will appear here.')}</div>`;
+    }
     const mine=myApps();const myMemberships=state.memberships;const pending=mine.filter(a=>['pending','under_review','waitlisted'].includes(a.status)).length;
     const managed=isAdmin()||hasStaff();
     const metrics=managed?[
@@ -275,7 +291,8 @@
   }
   function applicationsPage(){return topHeading('My Applications','Track every club application from submission to final decision.',`<button class="button primary sm" data-action="go-clubs">+ Apply to a Club</button>`)+applicationTable(myApps());}
   function membershipsPage(){return topHeading('My Clubs','Your approved memberships for this academic year.')+(state.memberships.length?`<div class="cards-two">${state.memberships.map(m=>`<div class="panel"><div class="eyebrow">ACTIVE MEMBER</div><h2 class="panel-title" style="margin:8px 0">${escapeHtml(m.clubId?.name)}</h2>${status(m.status)}<div class="divider"></div><p class="small muted">Joined ${date(m.joinedAt)} · ${escapeHtml(m.academicYear)}</p></div>`).join('')}</div>`:empty('◇','Your club journey starts here','Once your application is approved, your memberships will appear on this page.')) ;}
-  function announcementsPage(){return topHeading('Community Announcements','Stay connected with everything happening around THE HAVEN.',(isAdmin()||hasStaff())?`<button class="button primary sm" data-action="create-announcement">+ New Announcement</button>`:'')+`<div style="display:grid;gap:13px">${state.announcements.map(a=>`<article class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><span class="badge">${escapeHtml(a.clubId?.name||'School-wide')}</span><span class="small muted">${date(a.createdAt)}</span></div><h3 style="margin:14px 0 8px;font-size:18px">${escapeHtml(a.title)}</h3><p style="line-height:1.8;color:#7d786d;margin:0;white-space:pre-wrap">${escapeHtml(a.body)}</p><p class="helper" style="margin:14px 0 0">Posted by ${escapeHtml(a.authorId?.fullName||'THE HAVEN')}</p></article>`).join('')||empty('◌','No announcements','Updates from your community will appear here.')}</div>`;}
+  function announcementsPage(){return topHeading('Community Announcements','Stay connected with our community.',isAdmin()?`<button class="button primary sm" data-action="create-announcement">+ New Announcement</button>`:'')+`<div style="display:grid;gap:13px">${state.announcements.map(a=>`<article class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><span class="badge">${escapeHtml(a.clubId?.name||'School-wide')}</span><span class="small muted">${date(a.createdAt)}</span></div><h3 style="margin:14px 0 8px;font-size:18px">${escapeHtml(a.title)}</h3><p style="line-height:1.8;color:#7d786d;margin:0;white-space:pre-wrap">${escapeHtml(a.body)}</p><p class="helper" style="margin:14px 0 0">Posted by ${escapeHtml(a.authorId?.fullName||'THE HAVEN')}</p></article>`).join('')||empty('◌','No announcements','Updates from your community will appear here.')}</div>`;}
+  const announcementCard=a=>`<article class="panel community-announcement"><div class="community-announcement-meta"><span class="badge">${escapeHtml(a.clubId?.name||'Community')}</span><span class="small muted">${date(a.createdAt)}</span></div><h3>${escapeHtml(a.title)}</h3><p>${escapeHtml(a.body)}</p><p class="helper">Posted by ${escapeHtml(a.authorId?.fullName||'Administrator')}</p></article>`;
   function notificationsPage(){return topHeading('Notifications','Keep track of important updates about your account and applications.')+`<div class="panel activity-list">${state.notifications.map(n=>`<div class="activity-item"><div class="activity-marker" style="${n.read?'opacity:.48':''}">${n.read?'◌':'✦'}</div><div style="flex:1"><div class="activity-title">${escapeHtml(n.title)} ${!n.read?'<span class="badge pending">New</span>':''}</div><div class="activity-text">${escapeHtml(n.message)}</div><div class="activity-time">${ago(n.createdAt)}</div></div>${!n.read?`<button data-action="mark-read" data-id="${id(n)}" class="button ghost sm">Mark read</button>`:''}</div>`).join('')||empty('♧','All caught up','No notifications right now.')}</div>`;}
   function staffApplicationsPage(){if(!hasStaff()&&!isAdmin())return denied();return topHeading('Application Review','Review club applications, make decisions, and welcome new members.')+applicationTable(staffApps(),true);}
   function membersPage(){if(!hasStaff()&&!isAdmin())return denied();const clubs=state.clubs.filter(c=>isStaffClub(c._id));return topHeading('Club Members','Manage and view approved members in your assigned communities.')+`<div class="cards-two">${clubs.map(c=>`<div class="panel"><div class="eyebrow">${escapeHtml(c.category)}</div><h3>${escapeHtml(c.name)}</h3><p class="small muted">${c.memberCount} / ${c.capacity} members</p><button class="button secondary sm" data-action="view-members" data-id="${id(c)}">View Members →</button></div>`).join('')||empty('♧','No assigned clubs','Ask the administrator to assign you to a club.')}</div>`;}
