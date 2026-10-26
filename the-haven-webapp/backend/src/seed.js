@@ -4,7 +4,10 @@ import bcrypt from 'bcryptjs';
 import { Club, User, Setting } from './models.js';
 
 if (!process.env.MONGODB_URI) throw new Error('Set MONGODB_URI before seeding.');
-await mongoose.connect(process.env.MONGODB_URI);
+await mongoose.connect(process.env.MONGODB_URI, {
+  dbName: process.env.MONGODB_DB_NAME || 'the_haven_db',
+  serverSelectionTimeoutMS: 12000
+});
 const demoClubs = [
   { name: 'Peer Support Circle', category: 'Wellness', tagline: 'A listening ear, a stronger community.', description: 'Connect with peers, build compassionate communication skills, and support a caring campus environment. Example club — edit in Admin Dashboard.', capacity: 50, meetingSchedule: 'Thursdays · 3:30 PM', accent: 'rose' },
   { name: 'Leadership & Mentorship', category: 'Leadership', tagline: 'Grow together. Lead with purpose.', description: 'Explore peer facilitation, leadership workshops, and mentoring opportunities with fellow students. Example club — edit in Admin Dashboard.', capacity: 40, meetingSchedule: 'Wednesdays · 4:00 PM', accent: 'gold' },
