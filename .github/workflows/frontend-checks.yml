@@ -62,7 +62,13 @@ jobs:
           assert.match(css, /@media\(max-width:800px\)\s*\{[\s\S]*?\.public-hero\.hero-simple \.hero-actions\s*\{\s*display:grid;\s*grid-template-columns:minmax\(0,1fr\);/, 'Hero mobile actions must stack in one full-width column');
           assert.match(css, /\.public-hero\.hero-simple \.hero-actions \.button\s*\{[^}]*white-space:normal;[^}]*overflow-wrap:break-word;/, 'Hero button labels must wrap within their own bounds instead of overlapping');
           assert.match(css, /\.public-hero\.hero-simple \.public-art\s*\{[^}]*margin:10px auto 0;/, 'Hero illustration must sit below mobile text');
-          assert.match(html, /styles\.css\?v=20261026-mobile-hero/, 'Mobile CSS must bypass stale browser cache');
+          assert.ok(html.includes('styles.css?v=20261026-centered-splash'), 'Updated splash CSS must bypass stale browser cache');
+          assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
+          assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
+          assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
+          assert.ok(css.includes('.splash-emblem .splash-ring{'), 'Decorative splash rings must use emblem positioning');
+          assert.match(css, /top:50%;\s*left:50%;\s*border-radius:50%;\s*transform:translate\(-50%,-50%\);/, 'Splash circles must share the logo center');
+          assert.ok(css.includes('.splash::before,.splash::after{content:none}'), 'Offset screen-level splash rings must be disabled');
           assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length,'CSS block braces must balance');
           console.log('THE HAVEN phone/tablet responsive layout checks passed.');
           NODE
