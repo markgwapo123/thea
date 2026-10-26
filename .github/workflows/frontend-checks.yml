@@ -152,11 +152,11 @@ jobs:
           assert.match(css, /\.registration-request-actions \.button\s*\{[\s\S]*?width:100%;\s*min-width:0;\s*min-height:44px;/, 'Approve and Reject must use identical button widths and heights');
           assert.ok(css.includes('.registration-request-actions{width:150px;min-width:150px;gap:8px}'), 'Registration buttons must be consistently sized for mobile');
           assert.ok(app.includes('data-action="approve-user"') && app.includes('data-action="reject-user"'), 'Registration approval actions must stay interactive');
-          assert.match(css, /\.user-management-actions\s*\{\s*display:grid;/, 'User action buttons must stack consistently');
+          assert.match(css, /\.user-management-actions,\s*\.registration-request-actions\s*\{\s*display:grid;/, 'User and Registration buttons must stack consistently');
           assert.ok(css.includes('grid-template-columns:minmax(0,1fr);'), 'Button column must remain single-width');
-          assert.match(css, /\.user-management-actions \.button\s*\{\s*display:flex;/, 'Button centering must be scoped to user management');
+          assert.match(css, /\.user-management-actions \.button,\s*\.registration-request-actions \.button\s*\{\s*display:flex;/, 'Button centering must apply to both account tables');
           assert.match(css, /width:100%;\s*min-width:0;\s*min-height:44px;/, 'Review and Delete buttons must share their dimensions');
-          assert.ok(css.includes('.user-management-actions{width:150px;min-width:150px;gap:8px}'), 'Mobile buttons need consistent widths');
+          assert.match(css, /\.user-management-actions,\s*\.registration-request-actions\{width:150px;min-width:150px;gap:8px\}/, 'Mobile buttons need consistent widths');
           const smoke = fs.readFileSync('the-haven-webapp/backend/src/smoke-api.js', 'utf8');
           assert.ok(smoke.includes('Guest cannot permanently delete a student'), 'Guests must never delete users');
           assert.ok(smoke.includes('Administrator can never delete own account'), 'Never delete administrator in smoke tests');
