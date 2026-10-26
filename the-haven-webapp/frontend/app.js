@@ -147,7 +147,7 @@
     } catch(err){$('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load THE HAVEN</h2><p>${escapeHtml(err.message)}</p><p>For preview, set <code>DEMO_MODE: true</code> in <code>frontend/config.js</code>.</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;}
   }
   function nav(route){state.route=route;state.sidebar=false;const hash='#/'+route;if(location.hash!==hash)location.hash=hash;render();window.scrollTo({top:0,behavior:'instant'});}
-  function toast(message,isError=false){const root=$('#toast-region');const el=document.createElement('div');el.className='toast'+(isError?' error');el.setAttribute('role',isError?'alert':'status');el.textContent=message;root.append(el);setTimeout(()=>el.remove(),4100);}
+  function toast(message,isError=false){const root=$('#toast-region');const el=document.createElement('div');el.className='toast'+(isError?' error':'');el.setAttribute('role',isError?'alert':'status');el.textContent=message;root.append(el);setTimeout(()=>el.remove(),4100);}
   async function mutation(method,path,body,success='Changes saved.'){
     if(state.busy)return false;
     state.busy=true;
