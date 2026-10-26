@@ -1,4 +1,7 @@
 # THE HAVEN: PEER FACILITATORS' COMMUNITY
+
+> **Repository status (2026-10-26):** This project is already uploaded to **https://github.com/markgwapo123/thea** under `the-haven-webapp/`. **Do not deploy to Vercel yet.** MongoDB connection utilities are in `backend/src/check-db.js`, with instructions in `DATABASE_SETUP.md`. **No real database password or connection URI is committed.** The database connection has not been verified; configure your private `backend/.env` before running `npm run db:check`. When deployment is requested, the Vercel root will be `the-haven-webapp/frontend` and the backend directory will be `the-haven-webapp/backend`. The original setup section below was written before this repository was created; use the updated instructions above instead.
+
 ### Online Club Registration and Management System · Fellowship Baptist College
 
 A responsive web app using the **original uploaded THE HAVEN logo**. Frontend: plain HTML/CSS/JavaScript. Backend: Node.js/Express. Database: MongoDB Atlas. Designed for Vercel + Render deployment.
