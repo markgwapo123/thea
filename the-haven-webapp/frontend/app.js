@@ -154,7 +154,12 @@
     if(cleanPath==='/auth/register'&&method==='POST'){
       if(!payload.fullName || !payload.email || !payload.studentId || String(payload.password||'').length<8)err('Please complete the form and use a password of at least 8 characters.');
       if(demo.users.some(u=>u.email===payload.email || u.studentId===payload.studentId))err('Email or student ID already registered.');
-      const newUser={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:payload.studentId,department:payload.department,yearLevel:payload.yearLevel,role:'student',status:'pending',registrationNote:''};
+      if(!/^\d{1,3}$/.test(String(payload.age||'')) || Number(payload.age)<13 || Number(payload.age)>100)err('Enter a valid age from 13 to 100.');
+      for(const [key,min,max] of [['address',5,200],['skills',2,500],['talents',2,500],['joinReason',15,1200]]){
+        const answer=String(payload[key]||'').trim();
+        if(answer.length<min||answer.length>max)err('Complete your '+(key==='joinReason'?'reason for joining':key)+' before submitting.');
+      }
+      const newUser={_id:newId('u'),fullName:payload.fullName,email:payload.email,studentId:payload.studentId,department:payload.department,yearLevel:payload.yearLevel,age:Number(payload.age),address:payload.address.trim(),skills:payload.skills.trim(),talents:payload.talents.trim(),joinReason:payload.joinReason.trim(),role:'student',status:'pending',registrationNote:''};
       demo.users.push(newUser);demo.currentUser=newUser._id;return saved({user:newUser});
     }
     if(cleanPath==='/auth/login'&&method==='POST'){
