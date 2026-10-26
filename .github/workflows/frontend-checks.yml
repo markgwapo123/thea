@@ -96,5 +96,12 @@ jobs:
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
           assert.match(app, /id="main-content"/, 'Main content landmark is required');
+          assert.doesNotMatch(app, /class="(?:nav-icon|stat-icon|empty-icon|club-art-symbol|activity-marker|next-step-icon|search-symbol)"/, 'Decorative icons must be removed across both roles');
+          assert.doesNotMatch(app, /class="avatar(?: sm)?"/, 'Decorative avatar badges should not render');
+          assert.ok(app.includes("['notifications','Notifications']"), 'Admin notifications must remain accessible as text in navigation');
+          assert.ok(app.includes('>Menu</button>'), 'Mobile menu button must be text-only');
+          assert.ok(app.includes('class="password-toggle"'), 'Keep essential password eye toggle');
+          assert.ok(css.includes('.hero-facts span::before{content:none;display:none}'), 'Landing checklist marks must be hidden');
+          assert.ok(html.includes('styles.css?v=20261026-text-only-ui') && html.includes('app.js?v=20261026-text-only-ui'), 'Mobile browsers must fetch fresh assets');
           console.log('THE HAVEN UI checks passed. No deployment occurred.');
           NODE
