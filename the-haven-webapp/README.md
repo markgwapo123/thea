@@ -6,6 +6,16 @@
 
 A responsive web app using the **original uploaded THE HAVEN logo**. Frontend: plain HTML/CSS/JavaScript. Backend: Node.js/Express. Database: MongoDB Atlas. Designed for Vercel + Render deployment.
 
+## Phase 3: Frontend and Backend Integration
+
+Phase 3 is **prepared in GitHub, not deployed**. THE HAVEN can serve its original frontend and Express API on one Render Node.js service using the repo's `render.yaml`. See [PHASE_3_INTEGRATION.md](PHASE_3_INTEGRATION.md).
+
+Run the **manual, non-deploy** [Phase 3 Integration workflow](https://github.com/markgwapo123/thea/actions/workflows/phase3-integration.yml) to validate the existing real admin login, MongoDB connectivity, same-origin frontend, and protected API endpoints.
+
+The standalone frontend's `DEMO_MODE` stays **true** until a persistent backend host is separately authorized. No Vercel deployment has been performed.
+
+---
+
 ## 0. Upload to GitHub and deploy the preview to Vercel (Windows PowerShell)
 
 This repository deliberately contains **both** `frontend/` and `backend/`, but **Vercel deploys only `frontend/`**. It is a static HTML/CSS/JS application, so no npm build is needed for the frontend.
