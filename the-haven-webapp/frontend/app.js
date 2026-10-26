@@ -621,7 +621,7 @@
     if(!isAdmin())return denied();
     const pending=state.users.filter(u=>u.role==='student'&&u.status==='pending');
     const rejected=state.users.filter(u=>u.role==='student'&&u.status==='rejected');
-    const renderTable=users=>`<div class="table-wrap registration-requests-table"><table><thead><tr><th>Applicant</th><th>Student ID</th><th>Program</th><th>Status</th><th>Decision</th></tr></thead><tbody>${users.map(u=>`<tr><td><strong>${escapeHtml(u.fullName)}</strong><div class="small muted">${escapeHtml(u.email)}</div></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.department||'—')}</td><td>${status(u.status)}</td><td><div class="table-action registration-request-actions"><button class="button primary sm" data-action="approve-user" data-id="${id(u)}">Approve</button><button class="button danger sm" data-action="reject-user" data-id="${id(u)}">Reject</button></div></td></tr>`).join('')}</tbody></table></div>`;
+    const renderTable=users=>`<div class="table-wrap registration-requests-table"><table><thead><tr><th>Applicant</th><th>Student ID</th><th>Program</th><th>Status</th><th>Decision</th></tr></thead><tbody>${users.map(u=>`<tr><td><strong>${escapeHtml(u.fullName)}</strong><div class="small muted">${escapeHtml(u.email)}</div></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.department||'—')}</td><td>${status(u.status)}</td><td><div class="table-action registration-request-actions"><button type="button" class="button secondary sm" data-action="view-registration" data-id="${id(u)}">View Details</button><button class="button primary sm" data-action="approve-user" data-id="${id(u)}">Approve</button><button class="button danger sm" data-action="reject-user" data-id="${id(u)}">Reject</button></div></td></tr>`).join('')}</tbody></table></div>`;
     return topHeading('Registration Requests','Review applications before granting member dashboard access.')+
       `<div class="approval-count panel"><div class="eyebrow">AWAITING APPROVAL</div><h2>${pending.length} pending registrations</h2></div><div class="section-heading"><h2>Pending Requests</h2></div>`+
       (pending.length?renderTable(pending):empty('✓','No pending registrations','New registrations will show here.'))+
@@ -820,16 +820,52 @@
       data=>mutation('POST','/staff',data,'Leadership assignment saved.'),{submitLabel:'Assign Position'});
   }
 
+  function registrationDetails(u){
+    const row=(label,value)=>`<div class="registration-detail-row"><dt>${label}</dt><dd>${escapeHtml(value??'—')}</dd></div>`;
+    return `<dl class="registration-detail-grid">
+      ${row('Full Name',u.fullName)}
+      ${row('Student ID',u.studentId||'—')}
+      ${row('Email Address',u.email)}
+      ${row('Age',u.age??'—')}
+      ${row('Address',u.address||'—')}
+      ${row('Department / Program',u.department||'—')}
+      ${row('Year Level',u.yearLevel||'—')}
+      ${row('Skills',u.skills||'—')}
+      ${row('Talents',u.talents||'—')}
+      ${row('Why did you join this organization?',u.joinReason||'—')}
+      ${row('Registration Status',u.status)}
+    </dl>`;
+  }
+  function viewRegistrationDetails(userId){
+    if(!isAdmin())return;
+    const user=state.users.find(row=>id(row)===userId && row.role==='student');
+    if(!user)return toast('Student registration is not available. Reload and try again.',true);
+    if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
+    document.body.classList.add('modal-open');
+    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop">
+      <div class="modal wide registration-review-modal" role="dialog" aria-modal="true" aria-labelledby="registration-review-title">
+        <div class="modal-header">
+          <h2 id="registration-review-title">Student Registration Details</h2>
+          <button type="button" class="close-modal" data-action="close-modal" aria-label="Close registration details">×</button>
+        </div>
+        <p class="registration-review-intro">Review this student's information before deciding on their registration.</p>
+        ${registrationDetails(user)}
+        <div class="registration-review-footer"><button type="button" class="button secondary" data-action="close-modal">Close</button></div>
+      </div>
+    </div>`;
+    $('#modal-root .close-modal')?.focus();
+  }
   function reviewRegistration(userId,decision){
     if(!isAdmin())return;
-    const u=state.users.find(row=>id(row)===userId);
+    const u=state.users.find(row=>id(row)===userId && row.role==='student');
     if(!u)return;
     const approving=decision==='approved';
-    const content=`<div class="banner"><strong>${escapeHtml(u.fullName)}</strong><p>${escapeHtml(u.email)} · ${escapeHtml(u.studentId||'No Student ID')}</p></div><p class="helper">${approving?'Approve this user to allow dashboard access.':'Rejected accounts cannot enter the dashboard.'}</p>`+
+    const content=`<p class="registration-review-intro">${approving?'Review the student information carefully before approving dashboard access.':'Review this registration and optionally explain why it was rejected.'}</p>`+
+      registrationDetails(u)+
       (approving?'':textarea('note','Reason (optional)','','maxlength="300"'));
     showModal(approving?'Approve User':'Reject User',content,data=>
       mutation('PATCH',`/users/${userId}/registration`,{decision,note:data.note||''},approving?'Account approved.':'Account rejected.'),
-      {submitLabel:approving?'Approve Account':'Reject Account'});
+      {submitLabel:approving?'Approve Account':'Reject Account',wide:true});
   }
   function createAdmin(){
     if(!isAdmin())return;
@@ -950,6 +986,7 @@
     if(type==='create-announcement'){createAnnouncement();return;}
     if(type==='assign-staff'){assignStaff();return;}
     if(type==='create-admin'){createAdmin();return;}
+    if(type==='view-registration'){viewRegistrationDetails(itemId);return;}
     if(type==='approve-user'||type==='reject-user'){reviewRegistration(itemId,type==='approve-user'?'approved':'rejected');return;}
     if(type==='remove-staff'){
       if(!isAdmin())return;
