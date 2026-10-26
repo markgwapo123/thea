@@ -97,6 +97,11 @@ try {
 
   const denied = await get('/api/users');
   check(denied.status === 401, 'Admin endpoint blocks guests');
+  const deniedDelete = await get('/api/users/507f1f77bcf86cd799439011', {
+    method: 'DELETE', headers: { Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmation: 'DELETE', email: 'not-a-real-student@example.com' })
+  });
+  check(deniedDelete.status === 401, 'Guest cannot permanently delete a student');
 
   const login = await get('/api/auth/login', {
     method: 'POST',
@@ -119,6 +124,21 @@ try {
 
   const users = await get('/api/users', { headers: { Cookie: cookie } });
   check(users.status === 200, 'Admin-only users endpoint');
+
+  // Negative-only tests. These requests are guaranteed NOT to delete anything.
+  const selfDelete = await get('/api/users/' + account.user._id, {
+    method: 'DELETE',
+    headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmation: 'DELETE', email: account.user.email })
+  });
+  check(selfDelete.status === 403, 'Administrator can never delete own account');
+
+  const unconfirmedDelete = await get('/api/users/507f1f77bcf86cd799439011', {
+    method: 'DELETE',
+    headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  check(unconfirmedDelete.status === 400, 'Account deletion requires explicit typed confirmation');
 
   const stats = await get('/api/stats', { headers: { Cookie: cookie } });
   check(stats.status === 200, 'Dashboard statistics endpoint');

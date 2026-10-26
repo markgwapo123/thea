@@ -385,6 +385,69 @@ app.patch('/api/users/:id', auth, onlyAdmin, wrap(async (req, res) => {
   await audit(req.user._id, 'user_status_changed', 'User', user._id, status);
   res.json({ user: safe(user) });
 }));
+// Administrators may permanently delete student accounts (including approved
+// ones). Keep the operation transactional so memberships, club capacity, related
+// personal data and the account never diverge on partial failures.
+app.delete('/api/users/:id', auth, onlyAdmin, wrap(async (req, res) => {
+  const targetId=req.params.id;
+  if(!validId(targetId))return fail(res,'Invalid user ID.');
+  if(String(req.user._id)===targetId)return fail(res,'You cannot delete your own administrator account.',403);
+  if(req.body?.confirmation!=='DELETE')return fail(res,'Type DELETE to confirm permanent removal.');
+  const expectedEmail=clean(req.body?.email,254).toLowerCase();
+  if(!expectedEmail)return fail(res,'Confirm the exact student email address.');
+
+  const session=await mongoose.startSession();
+  let deletedId=null;
+  try{
+    await session.withTransaction(async()=>{
+      // This route intentionally never targets an administrator account.
+      const student=await User.findOne({_id:targetId,role:'student'}).session(session);
+      if(!student)throw Object.assign(new Error('Student account not found.'),{statusCode:404});
+      if(student.email!==expectedEmail)throw Object.assign(new Error('Student details changed. Reload User Management and try again.'),{statusCode:409});
+
+      // Club.memberCount tracks active memberships, not mere registrations.
+      const memberships=await Membership.find({studentId:student._id,status:'active'})
+        .select('clubId').lean().session(session);
+      const byClub=new Map();
+      for(const membership of memberships){
+        const key=String(membership.clubId);
+        byClub.set(key,(byClub.get(key)||0)+1);
+      }
+
+      const removed=await User.deleteOne({_id:student._id,role:'student'},{session});
+      if(removed.deletedCount!==1)throw Object.assign(new Error('Student account could not be deleted.'),{statusCode:409});
+
+      // Purge dependent student records; remove stale reviewer references if the
+      // student previously held an officer/adviser assignment.
+      await Application.deleteMany({studentId:student._id},{session});
+      await Application.updateMany({reviewedBy:student._id},{$set:{reviewedBy:null}},{session});
+      await Membership.deleteMany({studentId:student._id},{session});
+      await ClubStaff.deleteMany({userId:student._id},{session});
+      await Notification.deleteMany({userId:student._id},{session});
+      await Announcement.deleteMany({authorId:student._id},{session});
+      await AuditLog.deleteMany({actorId:student._id},{session});
+
+      // Guard against legacy counters that may already be out of sync.
+      for(const [clubId,count] of byClub){
+        await Club.updateOne({_id:clubId},[{$set:{
+          memberCount:{$max:[0,{$subtract:[{$ifNull:['$memberCount',0]},count]}]}
+        }}],{session});
+      }
+      await AuditLog.create([{
+        actorId:req.user._id,
+        action:'student_account_deleted',
+        entityType:'User',
+        entityId:student._id,
+        details:`Previous status: ${student.status}; active memberships removed: ${memberships.length}`
+      }],{session});
+      deletedId=String(student._id);
+    });
+  }finally{
+    await session.endSession();
+  }
+  res.json({ok:true,deletedUserId:deletedId});
+}));
+
 app.get('/api/stats', auth, onlyAdmin, wrap(async (req, res) => {
   const scopes = await scopeIds(req.user);
   const clubFilter = scopes === null ? {} : { _id: { $in: scopes } };
