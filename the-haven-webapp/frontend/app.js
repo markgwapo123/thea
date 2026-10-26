@@ -272,10 +272,10 @@
     try{await api(method,path,body);closeModal();await fetchAll();toast(success);return true;}
     catch(e){toast(e.message,true);return false;}finally{state.busy=false;}
   }
-  function showModal(title,body,onSubmit,{wide=false,submitLabel='Save changes',subtitle=''}={}){
+  function showModal(title,body,onSubmit,{wide=false,submitLabel='Save changes',subtitle='',danger=false}={}){
     if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
     document.body.classList.add('modal-open');
-    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'THE HAVEN dialog')}"><div class="modal-header ${title?'':'no-title'}">${title?'<h2>'+escapeHtml(title)+'</h2>':''}<button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button primary">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
+    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'THE HAVEN dialog')}"><div class="modal-header ${title?'':'no-title'}">${title?'<h2>'+escapeHtml(title)+'</h2>':''}<button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button ${danger?'danger':'primary'}">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
     const form=$('#modal-form');form.addEventListener('submit',async ev=>{ev.preventDefault();const data=Object.fromEntries(new FormData(form));const btn=form.querySelector('button[type=submit]');btn.disabled=true;try{await onSubmit(data);}finally{if(btn.isConnected)btn.disabled=false;}});
     setTimeout(()=>form.querySelector('input,textarea,select')?.focus(),80);
   }
@@ -446,10 +446,42 @@
   function adminUsersPage(){
     if(!isAdmin())return denied();
     const actions=`<div class="admin-actions"><button class="button primary sm" data-action="create-admin">Add Administrator</button><button class="button secondary sm" data-action="assign-staff">Assign Officer / Adviser</button></div>`;
-    const rows=state.users.map(u=>`<tr><td><strong>${escapeHtml(u.fullName)}</strong></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Administrator':'Student'}</td><td>${status(u.status)}</td><td>${u.status==='active'&&id(u)!==id(state.user)?`<button class="button ghost sm" data-action="toggle-user" data-id="${id(u)}">Disable</button>`:u.status==='disabled'?`<button class="button secondary sm" data-action="toggle-user" data-id="${id(u)}">Reactivate</button>`:u.status==='pending'||u.status==='rejected'?`<button class="button secondary sm" data-action="navigate" data-route="admin-registrations">Review</button>`:'—'}</td></tr>`).join('');
-    return topHeading('User Management','Manage all member accounts, roles and administrators.',actions)+
-      `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const rows=state.users.map(u=>{
+      const idValue=id(u);
+      const statusAction=u.status==='active'&&idValue!==id(state.user)
+        ? `<button class="button ghost sm" data-action="toggle-user" data-id="${idValue}">Disable</button>`
+        : u.status==='disabled'
+          ? `<button class="button secondary sm" data-action="toggle-user" data-id="${idValue}">Reactivate</button>`
+          : u.status==='pending'||u.status==='rejected'
+            ? `<button class="button secondary sm" data-action="navigate" data-route="admin-registrations">Review</button>`
+            : '';
+      // Includes already approved (active) and previously disabled students.
+      // Administrators are never offered the account-deletion action.
+      const deleteAction=u.role==='student'
+        ? `<button type="button" class="button danger sm" data-action="delete-user" data-id="${idValue}" aria-label="Delete student ${escapeHtml(u.fullName)} permanently">Delete User</button>`
+        : '';
+      return `<tr><td><strong>${escapeHtml(u.fullName)}</strong></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Administrator':'Student'}</td><td>${status(u.status)}</td><td><div class="table-action">${statusAction||(!deleteAction?'—':'')}${deleteAction}</div></td></tr>`;
+    }).join('');
+    return topHeading('User Management','Manage member accounts. Deleted student accounts and associated records cannot be recovered.',actions)+
+      `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Student ID</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
+  function deleteStudentAccount(userId){
+    if(!isAdmin()||state.busy)return;
+    const user=state.users.find(u=>id(u)===userId&&u.role==='student');
+    if(!user)return toast('Student not found. Reload User Management and try again.',true);
+    const content=`<p class="delete-user-warning"><strong>Permanent deletion.</strong> This will remove the student account, club applications, memberships, officer/adviser assignments, and related account records. The action cannot be undone.</p>
+      <div class="delete-user-summary"><strong>${escapeHtml(user.fullName)}</strong><span>${escapeHtml(user.email)}</span><span>Current status: ${escapeHtml(user.status)}</span></div>
+      ${field('confirmDelete','Type DELETE to confirm','text','','required pattern="DELETE" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DELETE" maxlength="6"')}`;
+    showModal('Delete Student Account',content,async data=>{
+      if(data.confirmDelete!=='DELETE'){
+        toast('Type DELETE exactly to confirm permanent deletion.',true);
+        return;
+      }
+      await mutation('DELETE',`/users/${userId}`,{confirmation:'DELETE',email:user.email},
+        'Student account and related records permanently deleted.');
+    },{submitLabel:'Delete Student',danger:true});
+  }
+
   function reportsPage(){if(!isAdmin())return denied();return topHeading('Reports & Analytics','School-wide snapshots and registration report exports.',`<button class="button primary sm" data-action="download-report"> Export Applications CSV</button>`)+`<div class="stat-grid" style="margin:0 0 24px">${[['Clubs',state.stats.clubs||0,'Active club records'],['Applications',state.stats.applications||0,'All applications'],['Memberships',state.stats.memberships||0,'Confirmed members'],['Students',state.stats.students||0,'Registered students']].map(x=>statCard(...x)).join('')}</div><div class="panel"><h3 class="panel-title">Application Status Breakdown</h3>${['pending','approved','rejected','waitlisted','cancelled'].map(st=>{const count=staffApps().filter(a=>a.status===st).length;const pct=staffApps().length?Math.round(count/staffApps().length*100):0;return `<div style="display:grid;grid-template-columns:105px 1fr 35px;gap:13px;align-items:center;margin:14px 0"><span class="small muted" style="text-transform:capitalize">${st}</span><div style="height:10px;background:#f2eee6;border-radius:30px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#b89552;border-radius:30px"></div></div><b class="small">${count}</b></div>`}).join('')}</div>`;}
   function settingsPage(){
     if(!isAdmin())return denied();
@@ -638,6 +670,7 @@
     if(type==='edit-profile'){editProfile();return;}
     if(type==='change-password'){changePassword();return;}
     if(type==='edit-branding'){editBranding();return;}
+    if(type==='delete-user'){deleteStudentAccount(itemId);return;}
     if(type==='toggle-user'){const u=state.users.find(x=>id(x)===itemId);if(u&&confirm(`${u.status==='active'?'Disable':'Activate'} ${u.fullName}?`))await mutation('PATCH',`/users/${itemId}`,{status:u.status==='active'?'disabled':'active'},'Account status updated.');return;}
     if(type==='edit-year'){editYear();return;}
     if(type==='edit-landing'){editLanding();return;}
