@@ -712,7 +712,10 @@
       const deleteAction=u.role==='student'
         ? `<button type="button" class="button danger sm" data-action="delete-user" data-id="${idValue}" aria-label="Delete student ${escapeHtml(u.fullName)} permanently">Delete User</button>`
         : '';
-      return `<tr><td><strong>${escapeHtml(u.fullName)}</strong></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Administrator':'Student'}</td><td>${status(u.status)}</td><td><div class="table-action user-management-actions">${statusAction||(!deleteAction?'—':'')}${deleteAction}</div></td></tr>`;
+      const detailsAction=u.role==='student'
+        ? `<button type="button" class="button secondary sm" data-action="view-registration" data-id="${idValue}">View Details</button>`
+        : '';
+      return `<tr><td><strong>${escapeHtml(u.fullName)}</strong></td><td>${escapeHtml(u.studentId||'—')}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Administrator':'Student'}</td><td>${status(u.status)}</td><td><div class="table-action user-management-actions">${detailsAction}${statusAction||(!deleteAction&&!detailsAction?'—':'')}${deleteAction}</div></td></tr>`;
     }).join('');
     return topHeading('User Management','Manage member accounts. Deleted student accounts and associated records cannot be recovered.',actions)+
       `<div class="table-wrap user-management-table"><table><thead><tr><th>Name</th><th>Student ID</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
