@@ -223,7 +223,7 @@ app.post('/api/applications', auth, onlyAdmin, wrap(async (req, res) => {
 }));
 app.patch('/api/applications/:id/cancel', auth, onlyAdmin, wrap(async (req, res) => {
   if (!validId(req.params.id)) return fail(res, 'Invalid application ID.');
-  const application = await Application.findOneAndUpdate({ _id: req.params.id, studentId: req.user._id, status: { $in: ['pending','waitlisted'] } }, { $set: { status: 'cancelled' } }, { new: true });
+  const application = await Application.findOneAndUpdate({ _id: req.params.id, status: { $in: ['pending','waitlisted'] } }, { $set: { status: 'cancelled' } }, { new: true });
   if (!application) return fail(res, 'Only pending or waitlisted applications may be cancelled.', 409);
   await audit(req.user._id, 'application_cancelled', 'Application', application._id);
   res.json({ application });
