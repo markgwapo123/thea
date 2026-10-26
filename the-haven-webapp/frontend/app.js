@@ -421,26 +421,104 @@
     return `<div class="app-shell">${sideNav()}<div class="overlay ${state.sidebar?'open':''}" data-action="sidebar-toggle"></div><main class="main" id="main-content"><header class="topbar"><div style="display:flex;gap:12px;align-items:center"><button class="mobile-menu-btn" data-action="sidebar-toggle" aria-label="${state.sidebar?'Close':'Open'} navigation" aria-expanded="${state.sidebar}">Menu</button><div><div class="top-title">${escapeHtml(titles[state.route]||'THE HAVEN')}</div><div class="top-subtitle">${escapeHtml(state.settings.academicYear)} · Fellowship Baptist College</div></div></div><div class="top-actions"><span class="top-role">${isAdmin()?'Administrator':'Member'}</span></div></header><div class="content">${demoBar}${view()}</div></main></div>`;
   }
   function statCard(label,num,hint){return `<div class="stat-card"><div class="stat-top"><span>${label}</span></div><div class="stat-number">${num}</div><div class="stat-hint">${hint}</div></div>`;}
+  // One uncluttered, role-aware overview. All actions retain existing routes.
   function dashboard(){
     if(!isAdmin()){
       const announcements=state.announcements||[];
-      return topHeading('Welcome, '+escapeHtml(studentName()),'Community announcements and updates.')+
-        `<div class="community-intro panel"><div><div class="eyebrow">MEMBER DASHBOARD</div><h2>Stay connected with your community.</h2><p>Latest updates from your administrators.</p></div><button class="button secondary sm" data-action="navigate" data-route="leadership">Meet Officers & Advisers</button></div>`+
-        `<div class="section-heading"><h2>Announcements</h2></div>`+
-        `<div class="community-announcement-list">${announcements.length?announcements.map(announcementCard).join(''):empty('◌','No announcements yet','Admin announcements will appear here.')}</div>`;
+      return `<div class="dashboard-home dashboard-home--member">
+        <header class="dashboard-header">
+          <span class="dashboard-label">MEMBER SPACE</span>
+          <h1>Welcome back, ${escapeHtml(studentName())}.</h1>
+          <p>Everything happening in your community, in one welcoming place.</p>
+        </header>
+        <section class="dashboard-feature dashboard-feature--member" aria-labelledby="member-feature-title">
+          <div class="dashboard-feature-copy">
+            <span class="dashboard-label">YOUR COMMUNITY</span>
+            <h2 id="member-feature-title">Stay connected, stay informed.</h2>
+            <p>Find announcements from your administrators and get to know the people guiding THE HAVEN.</p>
+          </div>
+          <button type="button" class="button secondary dashboard-feature-button" data-action="navigate" data-route="leadership">Meet Officers &amp; Advisers</button>
+        </section>
+        <section class="dashboard-section" aria-labelledby="member-announcements-title">
+          <div class="dashboard-section-header">
+            <div><span class="dashboard-section-label">COMMUNITY NEWS</span><h2 id="member-announcements-title">Latest announcements</h2></div>
+            <span class="dashboard-count">${announcements.length} ${announcements.length===1?'update':'updates'}</span>
+          </div>
+          <div class="dashboard-announcements">
+            ${announcements.length?announcements.map(announcementCard).join(''):
+              `<div class="dashboard-empty" role="status"><strong>Nothing new just yet.</strong><p>Announcements from your administrators will appear here when they are published.</p></div>`}
+          </div>
+        </section>
+      </div>`;
     }
+
     const waiting=state.users.filter(u=>u.role==='student'&&u.status==='pending').length;
-    const approvalNotice=`<div class="admin-review-banner panel"><div><div class="eyebrow">REGISTRATION APPROVALS</div><h2>${waiting} account${waiting===1?'':'s'} waiting for review</h2><p>Approve or reject new registrations before members can access the club dashboard.</p></div><button class="button primary sm" data-action="navigate" data-route="admin-registrations">Review Requests</button></div>`;
-    const mine=myApps();const myMemberships=state.memberships;const pending=mine.filter(a=>['pending','under_review','waitlisted'].includes(a.status)).length;
-    const managed=isAdmin()||hasStaff();
-    const metrics=managed?[
-      ['Active Clubs',state.stats.clubs??state.clubs.length,'In your managed scope'],
-      ['Applications',state.stats.applications??0,'Total submissions'],
-      ['Pending Review',state.stats.pending??0,'Need a decision'],
-      ['Memberships',state.stats.memberships??0,'Approved students']
-    ]:[['Available Clubs',state.clubs.filter(c=>c.status==='open').length,'Open for registration'],['My Applications',mine.length,'Applications submitted'],['Pending',pending,'Awaiting a decision'],['My Memberships',myMemberships.length,'Clubs joined']];
-    const nextStep=managed?'':`<section class="next-step" aria-label="Suggested next step"><div><div class="eyebrow">YOUR NEXT STEP</div><h2>${pending?'Keep an eye on your applications':mine.length?'Discover what comes next':'Find your people, start your journey'}</h2><p>${pending?'Your application status will be updated here after review.':'Explore the communities available and choose one that interests you.'}</p></div><button class="button secondary sm" data-action="${pending?'navigate':'go-clubs'}" ${pending?'data-route="applications"':''}>${pending?'Track Status':'Explore Clubs'}</button></section>`;
-    return approvalNotice+`<div class="welcome"><div><div class="eyebrow">YOUR COMMUNITY, YOUR SPACE</div><h1>Welcome ${escapeHtml(studentName())},<br>we're glad you're here.</h1><p>${managed?'Guide your community, review applications, and bring members together.':'Find your place, make meaningful connections, and grow with THE HAVEN.'}</p><button class="button primary" data-action="${managed?'go-review':'go-clubs'}">${managed?'Review Applications':'Explore Communities'}</button></div><img class="welcome-image" src="${brandLogo()}" alt="Community logo"></div><div class="stat-grid">${metrics.map(x=>statCard(...x)).join('')}</div>${nextStep}<div class="grid-main" style="margin-top:22px"><section><div class="section-heading"><div><h2>${managed?'Recent Applications':'Discover communities'}</h2><p>${managed?'Applications that may need your attention':'Clubs you might love'}</p></div><button class="text-link" data-action="${managed?'go-review':'go-clubs'}">View all</button></div>${managed?`${applicationTable(staffApps().slice(0,5),true)}`:`<div class="club-grid" style="grid-template-columns:repeat(auto-fit,minmax(205px,1fr))">${state.clubs.slice(0,2).map(card).join('')}</div>`}</section><section><div class="section-heading"><h2>Community updates</h2><button class="text-link" data-action="navigate" data-route="announcements">View all</button></div><div class="panel activity-list">${state.announcements.slice(0,4).map(a=>`<div class="activity-item"><div><div class="activity-title">${escapeHtml(a.title)}</div><div class="activity-text">${escapeHtml(a.body).slice(0,126)}</div><div class="activity-time">${ago(a.createdAt)}</div></div></div>`).join('')||empty('◌','No updates yet','Announcements will appear here.')}</div></section></div>`;
+    const metrics=[
+      ['Active Clubs',state.stats.clubs??state.clubs.length,'Communities in the system'],
+      ['Applications',state.stats.applications??0,'Total club applications'],
+      ['Pending Review',state.stats.pending??0,'Club requests needing action'],
+      ['Memberships',state.stats.memberships??0,'Approved club memberships']
+    ];
+    const recent=staffApps().slice(0,4);
+    const announcements=(state.announcements||[]).slice(0,3);
+    return `<div class="dashboard-home dashboard-home--admin">
+      <header class="dashboard-header">
+        <span class="dashboard-label">ADMIN WORKSPACE</span>
+        <h1>Community overview</h1>
+        <p>Welcome back. Here's what needs your attention and what's happening in THE HAVEN.</p>
+      </header>
+      <section class="dashboard-feature dashboard-feature--admin" aria-labelledby="admin-action-title">
+        <div class="dashboard-feature-copy">
+          <span class="dashboard-label">ACCOUNT APPROVALS</span>
+          <h2 id="admin-action-title">${waiting===0?'All caught up on registrations':`${waiting} ${waiting===1?'registration':'registrations'} waiting for review`}</h2>
+          <p>${waiting===0?'No new student accounts are awaiting review.':'Review student registrations to grant access to the community dashboard.'}</p>
+        </div>
+        <button type="button" class="button primary dashboard-feature-button" data-action="navigate" data-route="admin-registrations">${waiting?'Review Requests':'View Registrations'}</button>
+      </section>
+      <section class="dashboard-section" aria-labelledby="admin-stats-title">
+        <div class="dashboard-section-header"><div><span class="dashboard-section-label">AT A GLANCE</span><h2 id="admin-stats-title">Community activity</h2></div></div>
+        <div class="stat-grid dashboard-stats">${metrics.map(row=>statCard(...row)).join('')}</div>
+      </section>
+      <div class="dashboard-columns">
+        <section class="dashboard-section" aria-labelledby="recent-applications-title">
+          <div class="dashboard-section-header">
+            <div><span class="dashboard-section-label">LATEST REQUESTS</span><h2 id="recent-applications-title">Recent applications</h2></div>
+            <button class="text-link" data-action="navigate" data-route="staff-applications">View all</button>
+          </div>
+          <div class="dashboard-list">
+            ${recent.length?recent.map(application=>`
+              <article class="dashboard-list-item">
+                <div class="dashboard-list-content">
+                  <strong>${escapeHtml(application.studentId?.fullName||'Student')}</strong>
+                  <p>${escapeHtml(application.clubId?.name||'Community')} · ${date(application.createdAt)}</p>
+                </div>
+                <div class="dashboard-list-end">
+                  ${status(application.status)}
+                  <button class="text-link" data-action="review" data-id="${id(application)}">Details</button>
+                </div>
+              </article>`).join(''):
+              `<div class="dashboard-empty" role="status"><strong>No applications to review.</strong><p>New club applications will appear here.</p></div>`}
+          </div>
+        </section>
+        <section class="dashboard-section" aria-labelledby="recent-updates-title">
+          <div class="dashboard-section-header">
+            <div><span class="dashboard-section-label">LATEST NEWS</span><h2 id="recent-updates-title">Community updates</h2></div>
+            <button class="text-link" data-action="navigate" data-route="announcements">View all</button>
+          </div>
+          <div class="dashboard-list dashboard-update-list">
+            ${announcements.length?announcements.map(item=>`
+              <article class="dashboard-list-item">
+                <div class="dashboard-list-content">
+                  <strong>${escapeHtml(item.title)}</strong>
+                  <p>${escapeHtml(item.body).slice(0,135)}</p>
+                  <span class="dashboard-date">${date(item.createdAt)}</span>
+                </div>
+              </article>`).join(''):
+              `<div class="dashboard-empty" role="status"><strong>No updates published yet.</strong><p>Post an announcement to share news with the community.</p></div>`}
+          </div>
+        </section>
+      </div>
+    </div>`;
   }
   function filterClubs(){return state.clubs.filter(c=>c.status!=='archived'&&(state.category==='All'||c.category===state.category)&&(c.name+' '+c.description+' '+c.category).toLowerCase().includes(state.search.toLowerCase()));}
   function searchAndFilters(){return `<div class="searchbar"><div class="searchwrap"><label for="club-search" class="sr-only">Search available clubs</label><input id="club-search" class="input" type="search" placeholder="Search clubs, interests, activities..." value="${escapeHtml(state.search)}" aria-label="Search clubs"></div></div><div class="filters">${categoryFilters().map(c=>`<button class="filter ${state.category===c?'active':''}" aria-pressed="${state.category===c}" data-action="category" data-category="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('')}</div><p class="results-summary" id="club-result-count" role="status">${filterClubs().length} ${filterClubs().length===1?'community':'communities'} found</p>`;}
