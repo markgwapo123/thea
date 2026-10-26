@@ -274,7 +274,10 @@
     const form=$('#modal-form');form.addEventListener('submit',async ev=>{ev.preventDefault();const data=Object.fromEntries(new FormData(form));const btn=form.querySelector('button[type=submit]');btn.disabled=true;try{await onSubmit(data);}finally{if(btn.isConnected)btn.disabled=false;}});
     setTimeout(()=>form.querySelector('input,textarea,select')?.focus(),80);
   }
-  const field=(name,label,type='text',value='',attrs='')=>`<div class="field ${type==='password'?'password-field':''}"><label for="f-${name}">${escapeHtml(label)}</label><input class="input" id="f-${name}" type="${type}" name="${name}" value="${escapeHtml(value)}" ${attrs}>${type==='password'?'<button type="button" class="password-toggle" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button>':''}</div>`;
+  // Accessible, inline password visibility icons; no external dependency.
+  const passwordEyeIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>';
+  const passwordEyeOffIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.733 5.076A10.744 10.744 0 0 1 12 5c4.28 0 7.92 2.44 9.88 6.02a2 2 0 0 1 0 1.96 11.01 11.01 0 0 1-3.15 3.63"/><path d="M6.61 6.61A11 11 0 0 0 2.12 11.02a2 2 0 0 0 0 1.96C4.08 16.56 7.72 19 12 19c1.37 0 2.68-.25 3.87-.7"/><path d="m3 3 18 18"/><path d="M10.59 10.59a2 2 0 0 0 2.82 2.82"/></svg>';
+  const field=(name,label,type='text',value='',attrs='')=>`<div class="field ${type==='password'?'password-field':''}"><label for="f-${name}">${escapeHtml(label)}</label><input class="input" id="f-${name}" type="${type}" name="${name}" value="${escapeHtml(value)}" ${attrs}>${type==='password'?'<button type="button" class="password-toggle" data-action="toggle-password" aria-label="Show password" title="Show password" aria-pressed="false">'+passwordEyeIcon+'</button>':''}</div>`;
   const textarea=(name,label,value='',attrs='')=>`<div class="field"><label for="f-${name}">${escapeHtml(label)}</label><textarea class="input" name="${name}" id="f-${name}" ${attrs}>${escapeHtml(value)}</textarea></div>`;
   const choose=(name,label,arr,value='')=>`<div class="field"><label>${escapeHtml(label)}</label><select class="input" name="${name}">${arr.map(x=>`<option value="${escapeHtml(x.value)}" ${x.value===value?'selected':''}>${escapeHtml(x.label)}</option>`).join('')}</select></div>`;
   const isAdmin=()=>state.user?.role==='admin';
@@ -552,7 +555,17 @@
     if(type==='skip-content'){const main=$('#main-content');if(main){main.setAttribute('tabindex','-1');main.focus({preventScroll:true});main.scrollIntoView({block:'start',behavior:'smooth'});}return;}
     if(type==='retry-loading'){await fetchAll();return;}
     if(type==='check-approval'){await fetchAll();nav(state.user?.status==='active'?'dashboard':'approval-status');return;}
-    if(type==='toggle-password'){const input=node.closest('.field')?.querySelector('input');if(!input)return;const reveal=input.type==='password';input.type=reveal?'text':'password';node.textContent=reveal?'Hide':'Show';node.setAttribute('aria-label',reveal?'Hide password':'Show password');node.setAttribute('aria-pressed',String(reveal));return;}
+    if(type==='toggle-password'){
+      const input=node.closest('.field')?.querySelector('input');
+      if(!input)return;
+      const reveal=input.type==='password';
+      input.type=reveal?'text':'password';
+      node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon;
+      node.setAttribute('aria-label',reveal?'Hide password':'Show password');
+      node.setAttribute('title',reveal?'Hide password':'Show password');
+      node.setAttribute('aria-pressed',String(reveal));
+      return;
+    }
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
     if(type==='sidebar-toggle'){state.sidebar=!state.sidebar;render();return;}
