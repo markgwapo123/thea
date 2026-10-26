@@ -38,6 +38,7 @@
     notifications:[{ _id:'t1', userId:'u-student', title:'Welcome to THE HAVEN',message:'Explore clubs and submit your first application.',read:false,createdAt:new Date(Date.now()-10800000).toISOString() }]
   });
   let demo = null;
+  let modalReturnFocus = null;
   function loadDemo(){try{demo=JSON.parse(localStorage.getItem(DEMO_KEY)) || demoSeed();}catch{demo=demoSeed();} saveDemo();}
   function saveDemo(){localStorage.setItem(DEMO_KEY,JSON.stringify(demo));}
   function demoResponse(method, path, payload={}) {
@@ -154,11 +155,13 @@
     catch(e){toast(e.message,true);return false;}finally{state.busy=false;}
   }
   function showModal(title,body,onSubmit,{wide=false,submitLabel='Save changes',subtitle=''}={}){
-    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}"><div class="modal-header"><h2>${escapeHtml(title)}</h2><button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button primary">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
+    if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
+    document.body.classList.add('modal-open');
+    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'THE HAVEN dialog')}"><div class="modal-header ${title?'':'no-title'}">${title?'<h2>'+escapeHtml(title)+'</h2>':''}<button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button primary">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
     const form=$('#modal-form');form.addEventListener('submit',async ev=>{ev.preventDefault();const data=Object.fromEntries(new FormData(form));const btn=form.querySelector('button[type=submit]');btn.disabled=true;try{await onSubmit(data);}finally{if(btn.isConnected)btn.disabled=false;}});
     setTimeout(()=>form.querySelector('input,textarea,select')?.focus(),80);
   }
-  const field=(name,label,type='text',value='',attrs='')=>`<div class="field"><label for="f-${name}">${escapeHtml(label)}</label><input class="input" id="f-${name}" type="${type}" name="${name}" value="${escapeHtml(value)}" ${attrs}></div>`;
+  const field=(name,label,type='text',value='',attrs='')=>`<div class="field ${type==='password'?'password-field':''}"><label for="f-${name}">${escapeHtml(label)}</label><input class="input" id="f-${name}" type="${type}" name="${name}" value="${escapeHtml(value)}" ${attrs}>${type==='password'?'<button type="button" class="password-toggle" data-action="toggle-password" aria-label="Show password" aria-pressed="false">Show</button>':''}</div>`;
   const textarea=(name,label,value='',attrs='')=>`<div class="field"><label for="f-${name}">${escapeHtml(label)}</label><textarea class="input" name="${name}" id="f-${name}" ${attrs}>${escapeHtml(value)}</textarea></div>`;
   const choose=(name,label,arr,value='')=>`<div class="field"><label>${escapeHtml(label)}</label><select class="input" name="${name}">${arr.map(x=>`<option value="${escapeHtml(x.value)}" ${x.value===value?'selected':''}>${escapeHtml(x.label)}</option>`).join('')}</select></div>`;
   const isAdmin=()=>state.user?.role==='admin';
@@ -234,7 +237,7 @@
   }
   function openApply(cid){const c=clubOf(cid);if(!c)return;showModal(`Apply to ${c.name}`,`<div class="banner">Academic Year: ${escapeHtml(state.settings.academicYear)} · ${Math.max(0,c.capacity-c.memberCount)} slots available</div><br><div class="split-input">${field('fullName','Student Name','text',state.user.fullName,'disabled')}${field('studentId','Student ID','text',state.user.studentId,'disabled')}</div>${textarea('motivation','Why do you want to join this club?','','required minlength="15" maxlength="1000" placeholder="Share your motivation in a few sentences..."')}<p class="helper">Your application will be reviewed by the assigned club adviser. Duplicate applications for the same academic year are not allowed.</p>`,data=>mutation('POST','/applications',{clubId:cid,motivation:data.motivation},'Your application has been submitted!'),{submitLabel:'Submit Application'});}
   function openAuth(mode){
-    const login=mode==='login';const content=`<img class="auth-logo" src="${LOGO}" alt="THE HAVEN"><h3 class="auth-title">${login?'Welcome back':'Join THE HAVEN'}</h3><p class="auth-desc">${login?'Log in to your community portal.':'Create your account to join school clubs.'}</p>${!login?field('fullName','Full Name','text','','required minlength="2"')+`<div class="split-input">${field('studentId','School Student ID','text','','required')}${field('yearLevel','Year Level','text','','placeholder="2nd Year"')}</div>`+field('department','Department / Program','text','','placeholder="e.g. College of Education"'):''}${field('email','Email Address','email','','required autocomplete="email"')}${field('password','Password','password','','required minlength="8" autocomplete="'+(login?'current-password':'new-password')+'"')}<p class="helper">${cfg.DEMO_MODE?'Preview mode: account creation is simulated. Use the demo role controls to explore without credentials.':'Passwords must contain 8 or more characters. Please use school-approved account details.'}</p><p style="text-align:center;font-size:12px">${login?'New to THE HAVEN?':'Already a member?'} <button type="button" class="text-link" data-action="${login?'register':'login'}">${login?'Create an account':'Log in'}</button></p>`;
+    const login=mode==='login';const content=`<img class="auth-logo" src="${LOGO}" alt="THE HAVEN"><h3 class="auth-title">${login?'Welcome back':'Join THE HAVEN'}</h3><p class="auth-desc">${login?'Log in to your community portal.':'Create your account to join school clubs.'}</p>${cfg.DEMO_MODE?'<div class="auth-mode-note">Preview only · No real accounts or student records are created.</div>':''}${!login?field('fullName','Full Name','text','','required minlength="2"')+`<div class="split-input">${field('studentId','School Student ID','text','','required')}${field('yearLevel','Year Level','text','','placeholder="2nd Year"')}</div>`+field('department','Department / Program','text','','placeholder="e.g. College of Education"'):''}${field('email','Email Address','email','','required autocomplete="email"')}${field('password','Password','password','','required minlength="8" autocomplete="'+(login?'current-password':'new-password')+'"')}<p class="helper auth-helper">${cfg.DEMO_MODE?'Preview mode: account creation is simulated. Use the demo role controls to explore without credentials.':'Passwords must contain 8 or more characters. Please use school-approved account details.'}</p><p style="text-align:center;font-size:12px">${login?'New to THE HAVEN?':'Already a member?'} <button type="button" class="text-link" data-action="${login?'register':'login'}">${login?'Create an account':'Log in'}</button></p>`;
     showModal('',content,async data=>{const endpoint=login?'/auth/login':'/auth/register';try{await api('POST',endpoint,data);closeModal();await fetchAll();nav('dashboard');toast(login?'Welcome back!':'Your account is ready. Welcome!');}catch(e){toast(e.message,true)}},{submitLabel:login?'Log in →':'Create Account →'});
   }
   function editClub(cid){const c=cid?clubOf(cid):null;const name=c?'Edit Club':'Create New Club';const body=field('name','Club Name','text',c?.name||'','required maxlength="120"')+field('category','Category','text',c?.category||'','required')+field('tagline','Short Tagline','text',c?.tagline||'')+textarea('description','Club Description',c?.description||'','required')+`<div class="split-input">${field('capacity','Member Capacity','number',c?.capacity||50,`required min="${c?.memberCount||1}"`)}${field('meetingSchedule','Meeting Schedule','text',c?.meetingSchedule||'To be announced')}</div>`+choose('accent','Club Card Theme',['gold','rose','sage','blue'].map(x=>({value:x,label:x[0].toUpperCase()+x.slice(1)})),c?.accent||'gold')+(c?choose('status','Registration Status',['open','closed','archived'].map(x=>({value:x,label:x[0].toUpperCase()+x.slice(1)})),c.status):'');
@@ -247,11 +250,18 @@
   function assignStaff(){if(!state.users.length){toast('No users available.',true);return;}showModal('Assign Club Staff',choose('userId','Select User',state.users.map(u=>({value:id(u),label:`${u.fullName} (${u.email})` })))+choose('clubId','Club',state.clubs.map(c=>({value:id(c),label:c.name})))+choose('role','Assigned Role',[{value:'adviser',label:'Club Adviser'},{value:'officer',label:'Club Officer'}])+`<div class="banner">Only Club Advisers (and administrators) can approve applications. Officers can manage assigned-club announcements and view members.</div>`,data=>mutation('POST','/staff',data,'Club staff assigned.'),{submitLabel:'Assign Staff'});}
   function editYear(){showModal('Update Academic Year',field('academicYear','Current Academic Year','text',state.settings.academicYear,'required pattern="[0-9]{4}[-–][0-9]{4}"')+'<p class="helper">Example: 2026–2027. Existing applications retain their original academic year.</p>',data=>mutation('PUT','/settings/academic-year',data,'Academic year updated.'));}
   function csvExport(){const rows=[['Student Name','Student ID','Email','Club','Academic Year','Application Status','Submitted Date','Remarks'],...staffApps().map(a=>[a.studentId?.fullName,a.studentId?.studentId,a.studentId?.email,a.clubId?.name,a.academicYear,a.status,date(a.createdAt),a.remarks||''])];const quote=v=>{const s=String(v??'');const safe=/^[=+\-@\t\r]/.test(s)?"'"+s:s;return '"'+safe.replaceAll('"','""')+'"'};const csv='\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download=`THE_HAVEN_Applications_${new Date().toISOString().slice(0,10)}.csv`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Application report exported.');}
-  function closeModal(){$('#modal-root').innerHTML='';}
+  function closeModal(){
+    if(!$('#modal-root').childElementCount)return;
+    $('#modal-root').innerHTML='';
+    document.body.classList.remove('modal-open');
+    if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});
+    modalReturnFocus=null;
+  }
   async function action(event){const node=event.target.closest('[data-action]');if(!node)return;const type=node.dataset.action, itemId=node.dataset.id;
     if(type==='modal-backdrop'&&event.target!==node)return;
     if(type==='close-modal'||type==='modal-backdrop'){closeModal();return;}
     if(type==='retry-loading'){await fetchAll();return;}
+    if(type==='toggle-password'){const input=node.closest('.field')?.querySelector('input');if(!input)return;const reveal=input.type==='password';input.type=reveal?'text':'password';node.textContent=reveal?'Hide':'Show';node.setAttribute('aria-label',reveal?'Hide password':'Show password');node.setAttribute('aria-pressed',String(reveal));return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
     if(type==='sidebar-toggle'){state.sidebar=!state.sidebar;render();return;}
@@ -277,7 +287,22 @@
 
   document.addEventListener('click',event=>{action(event).catch(e=>toast(e.message,true));});
   document.addEventListener('input',event=>{if(event.target.id==='club-search'){state.search=event.target.value;updateClubs();}});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape')closeModal();});
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){
+      if($('#modal-root').childElementCount){closeModal();return;}
+      if(state.sidebar){state.sidebar=false;render();}
+      return;
+    }
+    if(event.key==='Tab'&&$('#modal-root').childElementCount){
+      const dialog=$('#modal-root .modal');
+      if(!dialog)return;
+      const focusables=[...dialog.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href]')].filter(node=>node.getClientRects().length);
+      if(!focusables.length)return;
+      const first=focusables[0],last=focusables[focusables.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+    }
+  });
   window.addEventListener('hashchange',()=>{state.route=location.hash.slice(2)||'home';state.sidebar=false;render();});
   async function init(){
     state.route=location.hash.startsWith('#/')?location.hash.slice(2):'home';
