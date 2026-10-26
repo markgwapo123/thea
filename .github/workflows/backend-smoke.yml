@@ -1,0 +1,51 @@
+name: THE HAVEN - Backend Integration Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: the-haven-webapp/backend
+    steps:
+      - name: Checkout THE HAVEN
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify private credentials are configured
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$MONGODB_URI" ] || [ -z "$JWT_SECRET" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
+            echo "::error::Missing required repository secret. Configure MONGODB_URI, JWT_SECRET, ADMIN_EMAIL, and ADMIN_PASSWORD."
+            exit 1
+          fi
+
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check source syntax
+        run: npm run check
+
+      - name: Test temporary Express server and real admin login
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: the_haven_db
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          NODE_ENV: development
+        run: npm run api:smoke
