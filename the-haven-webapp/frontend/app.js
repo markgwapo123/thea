@@ -394,8 +394,82 @@
   function reviewApp(aid){const a=staffApps().find(x=>id(x)===aid);if(!a)return;const allowed=isAdviser(a.clubId);const reviewable=['pending','waitlisted','under_review'].includes(a.status);const content=`<div class="detail-intro"><b>${escapeHtml(a.studentId?.fullName)}</b> (${escapeHtml(a.studentId?.studentId||'No student ID')})<br>${escapeHtml(a.clubId?.name)}<p style="margin:9px 0 0">${escapeHtml(a.motivation)}</p></div><p>Current status: ${status(a.status)}</p>${a.remarks?`<p class="helper">Remarks: ${escapeHtml(a.remarks)}</p>`:''}${allowed&&reviewable?choose('status','Decision',[{value:'approved',label:'Approve application'},{value:'rejected',label:'Reject application'},{value:'waitlisted',label:'Move to waitlist'},{value:'under_review',label:'Mark under review'}]):'<div class="banner">You may view this application, but only its assigned adviser or an administrator can make a decision.</div>'}${allowed&&reviewable?textarea('remarks','Remarks (optional)','','maxlength="500"'):''}`;
     showModal('Application Details',content,data=>allowed&&reviewable?mutation('PATCH',`/applications/${aid}/review`,data,'Application decision saved.'):(closeModal(),Promise.resolve()),{submitLabel:allowed&&reviewable?'Save Decision':'Close',wide:true});
   }
-  function createAnnouncement(){const clubs=state.clubs.filter(c=>isStaffClub(c._id));const clubOpts=[...(isAdmin()?[{value:'',label:'School-wide'}]:[]),...clubs.map(c=>({value:id(c),label:c.name}))];showModal('Create Announcement',choose('clubId','Post To',clubOpts)+field('title','Title','text','','required')+textarea('body','Announcement Message','','required minlength="8"'),data=>mutation('POST','/announcements',data,'Announcement posted.'),{submitLabel:'Publish Announcement'});}
-  function assignStaff(){if(!state.users.length){toast('No users available.',true);return;}showModal('Assign Club Staff',choose('userId','Select User',state.users.map(u=>({value:id(u),label:`${u.fullName} (${u.email})` })))+choose('clubId','Club',state.clubs.map(c=>({value:id(c),label:c.name})))+choose('role','Assigned Role',[{value:'adviser',label:'Club Adviser'},{value:'officer',label:'Club Officer'}])+`<div class="banner">Only Club Advisers (and administrators) can approve applications. Officers can manage assigned-club announcements and view members.</div>`,data=>mutation('POST','/staff',data,'Club staff assigned.'),{submitLabel:'Assign Staff'});}
+  function createAnnouncement(){if(!isAdmin())return;const clubs=state.clubs.filter(c=>isStaffClub(c._id));const clubOpts=[...(isAdmin()?[{value:'',label:'School-wide'}]:[]),...clubs.map(c=>({value:id(c),label:c.name}))];showModal('Create Announcement',choose('clubId','Post To',clubOpts)+field('title','Title','text','','required')+textarea('body','Announcement Message','','required minlength="8"'),data=>mutation('POST','/announcements',data,'Announcement posted.'),{submitLabel:'Publish Announcement'});}
+  function assignStaff(){
+    if(!isAdmin())return;
+    const candidates=state.users.filter(u=>u.role==='student'&&u.status==='active');
+    const clubs=state.clubs.filter(c=>c.status!=='archived');
+    if(!candidates.length||!clubs.length){toast('Approve students and add a club first.',true);return;}
+    showModal('Assign Officer / Adviser',
+      choose('userId','Approved Member',candidates.map(u=>({value:id(u),label:u.fullName+' ('+u.email+')'})))+
+      choose('clubId','Club',clubs.map(c=>({value:id(c),label:c.name})))+
+      choose('role','Leadership Position',[{value:'officer',label:'Club Officer'},{value:'adviser',label:'Club Adviser'}]),
+      data=>mutation('POST','/staff',data,'Leadership assignment saved.'),{submitLabel:'Assign Position'});
+  }
+
+  function reviewRegistration(userId,decision){
+    if(!isAdmin())return;
+    const u=state.users.find(row=>id(row)===userId);
+    if(!u)return;
+    const approving=decision==='approved';
+    const content=`<div class="banner"><strong>${escapeHtml(u.fullName)}</strong><p>${escapeHtml(u.email)} · ${escapeHtml(u.studentId||'No Student ID')}</p></div><p class="helper">${approving?'Approve this user to allow dashboard access.':'Rejected accounts cannot enter the dashboard.'}</p>`+
+      (approving?'':textarea('note','Reason (optional)','','maxlength="300"'));
+    showModal(approving?'Approve User':'Reject User',content,data=>
+      mutation('PATCH',`/users/${userId}/registration`,{decision,note:data.note||''},approving?'Account approved.':'Account rejected.'),
+      {submitLabel:approving?'Approve Account':'Reject Account'});
+  }
+  function createAdmin(){
+    if(!isAdmin())return;
+    showModal('Add Administrator',
+      field('fullName','Administrator Name','text','','required minlength="2" maxlength="100"')+
+      field('email','Email Address','email','','required autocomplete="off"')+
+      field('password','Temporary Password','password','','required minlength="12" maxlength="128" autocomplete="new-password"')+
+      '<p class="helper">This account receives full administrator privileges. Share its password securely.</p>',
+      data=>mutation('POST','/admin/accounts',data,'Administrator account created.'),
+      {submitLabel:'Create Administrator'});
+  }
+  function editProfile(){
+    if(!state.user||state.user.status!=='active')return;
+    const u=state.user;
+    showModal('Edit My Profile',
+      field('fullName','Full Name','text',u.fullName,'required minlength="2" maxlength="100"')+
+      field('department','Department / Program','text',u.department||'','maxlength="100"')+
+      field('yearLevel','Year Level','text',u.yearLevel||'','maxlength="40"')+
+      '<p class="helper">Your email, role and approval status cannot be changed here.</p>',
+      data=>mutation('PUT','/me/profile',data,'Profile updated.'));
+  }
+  function changePassword(){
+    if(!state.user||state.user.status!=='active')return;
+    showModal('Change Password',
+      field('currentPassword','Current Password','password','','required autocomplete="current-password"')+
+      field('newPassword','New Password','password','','required minlength="8" maxlength="128" autocomplete="new-password"'),
+      data=>mutation('PUT','/me/password',data,'Password changed.'));
+  }
+  function editBranding(){
+    if(!isAdmin())return;
+    const content=field('name','Website Name','text',brandName(),'required minlength="2" maxlength="100"')+
+      `<div class="field"><label for="logo-upload">Replace Logo (PNG, JPEG, WebP, up to 350 KB)</label><input id="logo-upload" name="logoFile" class="input" type="file" accept="image/png,image/jpeg,image/webp"><span class="helper">Leave blank to keep the current image.</span></div>`+
+      '<label class="brand-reset"><input type="checkbox" name="resetLogo" value="yes"> Restore original official logo</label>';
+    showModal('Edit Website Branding',content,async data=>{
+      const payload={name:data.name};
+      const file=data.logoFile;
+      if(data.resetLogo==='yes')payload.logoDataUrl=null;
+      else if(file instanceof File && file.size){
+        if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>350*1024){
+          toast('Upload a PNG, JPEG or WebP image up to 350KB.',true);return;
+        }
+        try{
+          payload.logoDataUrl=await new Promise((resolve,reject)=>{
+            const reader=new FileReader();
+            reader.onload=()=>resolve(String(reader.result));
+            reader.onerror=()=>reject(new Error('Unable to read image file.'));
+            reader.readAsDataURL(file);
+          });
+        }catch(e){toast(e.message,true);return;}
+      }
+      await mutation('PUT','/settings/branding',payload,'Website branding updated.');
+    },{wide:true,submitLabel:'Save Branding'});
+  }
   function editLanding(){
     if(!isAdmin())return;
     const section=landingContent();
@@ -427,6 +501,7 @@
     if(type==='close-modal'||type==='modal-backdrop'){closeModal();return;}
     if(type==='skip-content'){const main=$('#main-content');if(main){main.setAttribute('tabindex','-1');main.focus({preventScroll:true});main.scrollIntoView({block:'start',behavior:'smooth'});}return;}
     if(type==='retry-loading'){await fetchAll();return;}
+    if(type==='check-approval'){await fetchAll();nav(state.user?.status==='active'?'dashboard':'approval-status');return;}
     if(type==='toggle-password'){const input=node.closest('.field')?.querySelector('input');if(!input)return;const reveal=input.type==='password';input.type=reveal?'text':'password';node.textContent=reveal?'Hide':'Show';node.setAttribute('aria-label',reveal?'Hide password':'Show password');node.setAttribute('aria-pressed',String(reveal));return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
@@ -434,7 +509,7 @@
     if(type==='category'){state.category=node.dataset.category;updateClubs();return;}
     if(type==='club'){openClub(itemId);return;}
     if(type==='login'||type==='register'){openAuth(type);return;}
-    if(type==='demo-role') {demo.currentUser=itemId;saveDemo();await fetchAll();nav('dashboard');return;}
+    if(type==='demo-role') {if(!cfg.DEMO_MODE)return;demo.currentUser=itemId;saveDemo();await fetchAll();nav('dashboard');return;}
     if(type==='reset-demo'){if(confirm('Reset all browser demo data?')){demo=demoSeed();saveDemo();await fetchAll();nav('home');toast('Demo reset.');}return;}
     if(type==='logout'){await api('POST','/auth/logout');if(cfg.DEMO_MODE){demo.currentUser='';saveDemo();}await fetchAll();nav('home');return;}
     if(type==='application-info'){const a=state.applications.find(x=>id(x)===itemId);if(a)showModal('My Application',`<div class="detail-intro"><b>${escapeHtml(a.clubId?.name)}</b><p style="margin:8px 0">${escapeHtml(a.motivation)}</p></div><p>Decision: ${status(a.status)}</p><p class="small muted">Submitted ${date(a.createdAt)}</p>${a.remarks?`<p>Review remarks: ${escapeHtml(a.remarks)}</p>`:''}`,async()=>closeModal(),{submitLabel:'Close'});return;}
@@ -443,6 +518,17 @@
     if(type==='create-club'||type==='edit-club'){editClub(type==='edit-club'?itemId:null);return;}
     if(type==='create-announcement'){createAnnouncement();return;}
     if(type==='assign-staff'){assignStaff();return;}
+    if(type==='create-admin'){createAdmin();return;}
+    if(type==='approve-user'||type==='reject-user'){reviewRegistration(itemId,type==='approve-user'?'approved':'rejected');return;}
+    if(type==='remove-staff'){
+      if(!isAdmin())return;
+      const assignment=state.clubStaff.find(row=>id(row)===itemId);
+      if(assignment&&confirm('Remove this leadership assignment?'))await mutation('DELETE','/staff/'+itemId,{},'Leadership assignment removed.');
+      return;
+    }
+    if(type==='edit-profile'){editProfile();return;}
+    if(type==='change-password'){changePassword();return;}
+    if(type==='edit-branding'){editBranding();return;}
     if(type==='toggle-user'){const u=state.users.find(x=>id(x)===itemId);if(u&&confirm(`${u.status==='active'?'Disable':'Activate'} ${u.fullName}?`))await mutation('PATCH',`/users/${itemId}`,{status:u.status==='active'?'disabled':'active'},'Account status updated.');return;}
     if(type==='edit-year'){editYear();return;}
     if(type==='edit-landing'){editLanding();return;}
