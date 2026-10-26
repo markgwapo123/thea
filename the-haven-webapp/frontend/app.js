@@ -507,13 +507,14 @@
           </div>
           <div class="dashboard-list dashboard-update-list">
             ${announcements.length?announcements.map(item=>`
-              <article class="dashboard-list-item">
-                <div class="dashboard-list-content">
+              <button type="button" class="dashboard-list-item dashboard-update-card" data-action="view-announcement" data-id="${escapeHtml(id(item))}" aria-label="Read full announcement: ${escapeHtml(item.title)}">
+                <span class="dashboard-list-content">
                   <strong>${escapeHtml(item.title)}</strong>
-                  <p>${escapeHtml(item.body).slice(0,135)}</p>
+                  <span class="dashboard-update-excerpt">${escapeHtml(String(item.body||'').slice(0,135))}</span>
                   <span class="dashboard-date">${date(item.createdAt)}</span>
-                </div>
-              </article>`).join(''):
+                </span>
+                <span class="dashboard-update-read">Read</span>
+              </button>`).join(''):
               `<div class="dashboard-empty" role="status"><strong>No updates published yet.</strong><p>Post an announcement to share news with the community.</p></div>`}
           </div>
         </section>
@@ -529,8 +530,46 @@
   }
   function applicationsPage(){return topHeading('My Applications','Track every club application from submission to final decision.',`<button class="button primary sm" data-action="go-clubs">Apply to a Club</button>`)+applicationTable(myApps());}
   function membershipsPage(){return topHeading('My Clubs','Your approved memberships for this academic year.')+(state.memberships.length?`<div class="cards-two">${state.memberships.map(m=>`<div class="panel"><div class="eyebrow">ACTIVE MEMBER</div><h2 class="panel-title" style="margin:8px 0">${escapeHtml(m.clubId?.name)}</h2>${status(m.status)}<div class="divider"></div><p class="small muted">Joined ${date(m.joinedAt)} · ${escapeHtml(m.academicYear)}</p></div>`).join('')}</div>`:empty('◇','Your club journey starts here','Once your application is approved, your memberships will appear on this page.')) ;}
-  function announcementsPage(){return topHeading('Community Announcements','Stay connected with our community.',isAdmin()?`<button class="button primary sm" data-action="create-announcement">New Announcement</button>`:'')+`<div style="display:grid;gap:13px">${state.announcements.map(a=>`<article class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><span class="badge">${escapeHtml(a.clubId?.name||'School-wide')}</span><span class="small muted">${date(a.createdAt)}</span></div><h3 style="margin:14px 0 8px;font-size:18px">${escapeHtml(a.title)}</h3><p style="line-height:1.8;color:#7d786d;margin:0;white-space:pre-wrap">${escapeHtml(a.body)}</p><p class="helper" style="margin:14px 0 0">Posted by ${escapeHtml(a.authorId?.fullName||'THE HAVEN')}</p></article>`).join('')||empty('◌','No announcements','Updates from your community will appear here.')}</div>`;}
-  const announcementCard=a=>`<article class="panel community-announcement"><div class="community-announcement-meta"><span class="badge">${escapeHtml(a.clubId?.name||'Community')}</span><span class="small muted">${date(a.createdAt)}</span></div><h3>${escapeHtml(a.title)}</h3><p>${escapeHtml(a.body)}</p><p class="helper">Posted by ${escapeHtml(a.authorId?.fullName||'Administrator')}</p></article>`;
+  function announcementsPage(){
+    return topHeading('Community Announcements','Stay connected with our community.',
+      isAdmin()?`<button class="button primary sm" data-action="create-announcement">New Announcement</button>`:'')+
+      `<div class="community-announcement-list">${state.announcements.map(announcementCard).join('')||
+        empty('','No announcements','Updates from your community will appear here.')}</div>`;
+  }
+  const announcementCard=a=>{
+    const body=String(a.body||'');
+    const excerpt=body.length>175?body.slice(0,175).trimEnd()+'…':body;
+    return `<button type="button" class="panel community-announcement announcement-card-button" data-action="view-announcement" data-id="${escapeHtml(id(a))}" aria-label="Read full announcement: ${escapeHtml(a.title)}">
+      <span class="community-announcement-meta"><span class="badge">${escapeHtml(a.clubId?.name||'Community')}</span><span class="small muted">${date(a.createdAt)}</span></span>
+      <span class="announcement-card-title">${escapeHtml(a.title)}</span>
+      <span class="announcement-card-excerpt">${escapeHtml(excerpt)}</span>
+      <span class="announcement-card-author">Posted by ${escapeHtml(a.authorId?.fullName||'THE HAVEN')}</span>
+      <span class="announcement-card-link">Read full announcement</span>
+    </button>`;
+  };
+  function viewAnnouncement(announcementId){
+    const announcement=state.announcements.find(item=>id(item)===announcementId);
+    if(!announcement){toast('This announcement is no longer available. Refresh the page and try again.',true);return;}
+    if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
+    document.body.classList.add('modal-open');
+    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop">
+      <div class="modal announcement-detail-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-modal-heading" aria-describedby="announcement-modal-content">
+        <div class="modal-header announcement-modal-header">
+          <span class="dashboard-section-label">COMMUNITY ANNOUNCEMENT</span>
+          <button type="button" class="close-modal" data-action="close-modal" aria-label="Close announcement">×</button>
+        </div>
+        <div class="announcement-modal-meta">
+          <span class="badge">${escapeHtml(announcement.clubId?.name||'Community')}</span>
+          <span class="small muted">${date(announcement.createdAt)}</span>
+        </div>
+        <h2 class="announcement-modal-title" id="announcement-modal-heading">${escapeHtml(announcement.title)}</h2>
+        <div class="announcement-modal-content" id="announcement-modal-content">${escapeHtml(announcement.body||'')}</div>
+        <p class="announcement-modal-author">Posted by <strong>${escapeHtml(announcement.authorId?.fullName||'THE HAVEN')}</strong></p>
+        <div class="announcement-modal-footer"><button type="button" class="button secondary" data-action="close-modal">Close</button></div>
+      </div>
+    </div>`;
+    $('#modal-root .close-modal')?.focus();
+  }
 
   function leadershipPage(){
     const leaders=state.leaders||[];
@@ -824,6 +863,7 @@
       node.setAttribute('aria-pressed',String(reveal));
       return;
     }
+    if(type==='view-announcement'){viewAnnouncement(itemId);return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
     if(type==='sidebar-toggle'){state.sidebar=!state.sidebar;render();return;}
