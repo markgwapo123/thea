@@ -20,6 +20,74 @@
     const sub=document.querySelector('.splash-subtitle');if(sub)sub.textContent=brandParts()[1];
   }
   const $ = sel => document.querySelector(sel);
+  // One loader for every API request, shared by Admin and Student views.
+  // Reference-counting keeps it open during concurrent requests and page refreshes.
+  const activeLoaders=new Map();
+  let nextLoaderId=0;
+  function updateLoadingIndicator(){
+    const overlay=$('#haven-loading');
+    if(!overlay)return;
+    const busy=activeLoaders.size>0;
+    overlay.hidden=!busy;
+    const app=$('#app');
+    if(app){
+      if(busy)app.setAttribute('aria-busy','true');
+      else app.removeAttribute('aria-busy');
+    }
+    if(busy){
+      let message='Loading...';
+      let highest=-1,latest=-1;
+      for(const [key,entry] of activeLoaders){
+        if(entry.priority>highest || (entry.priority===highest&&key>latest)){
+          highest=entry.priority;
+          latest=key;
+          message=entry.message;
+        }
+      }
+      const label=$('#haven-loading-message');
+      if(label)label.textContent=message;
+    }
+  }
+  function beginLoading(message='Loading...',priority=0){
+    const key=++nextLoaderId;
+    activeLoaders.set(key,{message,priority});
+    updateLoadingIndicator();
+    let finished=false;
+    return ()=>{
+      if(finished)return;
+      finished=true;
+      activeLoaders.delete(key);
+      updateLoadingIndicator();
+    };
+  }
+  function loadingMessage(method,path){
+    if(path==='/auth/login')return 'Signing in...';
+    if(path==='/auth/register')return 'Creating account...';
+    if(path==='/auth/logout')return 'Signing out...';
+    if(path==='/me')return 'Checking your account...';
+    if(method==='DELETE'&&path.startsWith('/users/'))return 'Deleting student account...';
+    if(method==='DELETE')return 'Removing record...';
+    if(path.includes('/registration'))return 'Updating approval status...';
+    if(path.includes('/review'))return 'Saving review decision...';
+    if(path==='/admin/accounts')return 'Creating administrator...';
+    if(path==='/announcements'&&method==='POST')return 'Publishing announcement...';
+    if(path==='/staff'&&method==='POST')return 'Assigning leadership...';
+    if(path==='/me/password')return 'Updating password...';
+    if(method==='GET')return 'Loading information...';
+    if(method==='POST')return 'Submitting...';
+    return 'Saving changes...';
+  }
+  function submittingMessage(label){
+    if(label==='Log in')return 'Signing in...';
+    if(label==='Create Account')return 'Creating account...';
+    if(label==='Delete Student')return 'Deleting...';
+    if(label==='Publish Announcement')return 'Publishing...';
+    if(label==='Approve Account')return 'Approving...';
+    if(label==='Reject Account')return 'Rejecting...';
+    if(label==='Close'||label==='Back')return '';
+    return 'Processing...';
+  }
+
   const escapeHtml = str => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const abbr = name => String(name || 'TH').split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
   const first = name => String(name || 'friend').trim().split(/\s+/)[0];
@@ -210,12 +278,17 @@
   }
 
   async function api(method, path, body) {
-    if(cfg.DEMO_MODE) return demoResponse(method,path,body);
-    const url = cfg.API_BASE_URL.replace(/\/$/,'')+path;
-    const res = await fetch(url, {method, credentials:'include', ...(method==='GET'&&path==='/me'?{cache:'no-store'}:{}), headers:{'Content-Type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {})});
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok)throw new Error(data.error||`Request failed (${res.status})`);
-    return data;
+    const endLoading=beginLoading(loadingMessage(method,path),1);
+    try{
+      if(cfg.DEMO_MODE)return await demoResponse(method,path,body);
+      const url=cfg.API_BASE_URL.replace(/\/$/,'')+path;
+      const res=await fetch(url, {method, credentials:'include', ...(method==='GET'&&path==='/me'?{cache:'no-store'}:{}), headers:{'Content-Type':'application/json'}, ...(body ? {body:JSON.stringify(body)} : {})});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(data.error||`Request failed (${res.status})`);
+      return data;
+    }finally{
+      endLoading();
+    }
   }
   const get = path=>api('GET',path);
   async function loadAllMemberships(page=1){
@@ -226,6 +299,7 @@
     state.memberPage=page;
   }
   async function fetchAll(confirmedSession=null){
+    const endLoading=beginLoading('Loading community data...',2);
     try{
       const [clubs,settings]=await Promise.all([get('/clubs'),get('/settings')]);
       state.clubs=clubs.clubs;state.settings=settings;applyBranding();
@@ -251,6 +325,8 @@
     }catch(err){
       $('#app').innerHTML=`<div style="padding:70px 20px;text-align:center"><h2>Cannot load the community website</h2><p>${escapeHtml(err.message)}</p><button class="button primary" data-action="retry-loading">Retry</button></div>`;
       return false;
+    }finally{
+      endLoading();
     }
   }
   function canAccessRoute(route){
@@ -269,14 +345,40 @@
   async function mutation(method,path,body,success='Changes saved.'){
     if(state.busy)return false;
     state.busy=true;
+    const endLoading=beginLoading(loadingMessage(method,path),3);
     try{await api(method,path,body);closeModal();await fetchAll();toast(success);return true;}
-    catch(e){toast(e.message,true);return false;}finally{state.busy=false;}
+    catch(e){toast(e.message,true);return false;}
+    finally{state.busy=false;endLoading();}
   }
   function showModal(title,body,onSubmit,{wide=false,submitLabel='Save changes',subtitle='',danger=false}={}){
     if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
     document.body.classList.add('modal-open');
     $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'THE HAVEN dialog')}"><div class="modal-header ${title?'':'no-title'}">${title?'<h2>'+escapeHtml(title)+'</h2>':''}<button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button ${danger?'danger':'primary'}">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
-    const form=$('#modal-form');form.addEventListener('submit',async ev=>{ev.preventDefault();const data=Object.fromEntries(new FormData(form));const btn=form.querySelector('button[type=submit]');btn.disabled=true;try{await onSubmit(data);}finally{if(btn.isConnected)btn.disabled=false;}});
+    const form=$('#modal-form');
+    form.addEventListener('submit',async ev=>{
+      ev.preventDefault();
+      if(form.dataset.submitting==='true')return; // Prevent rapid duplicate submissions.
+      const data=Object.fromEntries(new FormData(form));
+      const btn=form.querySelector('button[type=submit]');
+      const originalMarkup=btn.innerHTML;
+      const progressText=submittingMessage(submitLabel);
+      form.dataset.submitting='true';
+      btn.disabled=true;
+      btn.setAttribute('aria-busy','true');
+      if(progressText)btn.innerHTML=`<span class="haven-inline-spinner" aria-hidden="true"></span><span>${escapeHtml(progressText)}</span>`;
+      const endLoading=progressText?beginLoading(progressText,4):null;
+      try{await onSubmit(data);}
+      catch(error){toast(error?.message||'Unable to complete this action.',true);}
+      finally{
+        if(endLoading)endLoading();
+        delete form.dataset.submitting;
+        if(btn.isConnected){
+          btn.disabled=false;
+          btn.removeAttribute('aria-busy');
+          btn.innerHTML=originalMarkup;
+        }
+      }
+    });
     setTimeout(()=>form.querySelector('input,textarea,select')?.focus(),80);
   }
   // Accessible, inline password visibility icons; no external dependency.
