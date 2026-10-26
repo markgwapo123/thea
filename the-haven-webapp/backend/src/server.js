@@ -266,6 +266,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = Number(process.env.PORT || 4000);
-mongoose.connect(process.env.MONGODB_URI).then(() => {
+mongoose.connect(process.env.MONGODB_URI, {
+  dbName: process.env.MONGODB_DB_NAME || 'the_haven_db',
+  serverSelectionTimeoutMS: 12000
+}).then(() => {
   app.listen(PORT, '0.0.0.0', () => console.log(`THE HAVEN API listening on ${PORT}`));
 }).catch(err => { console.error('MongoDB connection failed:', err.message); process.exit(1); });
