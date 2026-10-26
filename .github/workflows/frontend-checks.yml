@@ -66,7 +66,7 @@ jobs:
           assert.match(css, /@media\(max-width:800px\)\s*\{[\s\S]*?\.public-hero\.hero-simple \.hero-actions\s*\{\s*display:grid;\s*grid-template-columns:minmax\(0,1fr\);/, 'Hero mobile actions must stack in one full-width column');
           assert.match(css, /\.public-hero\.hero-simple \.hero-actions \.button\s*\{[^}]*white-space:normal;[^}]*overflow-wrap:break-word;/, 'Hero button labels must wrap within their own bounds instead of overlapping');
           assert.match(css, /\.public-hero\.hero-simple \.public-art\s*\{[^}]*margin:10px auto 0;/, 'Hero illustration must sit below mobile text');
-          assert.ok(html.includes('styles.css?v=20261026-global-activity-loading'), 'Updated CSS must bypass stale browser cache');
+          assert.ok(html.includes('styles.css?v=20261026-aligned-registration-actions'), 'Updated CSS must bypass stale browser cache');
           assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
           assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
           assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
@@ -95,7 +95,7 @@ jobs:
           assert.match(app, /const passwordEyeOffIcon = '<svg /, 'Visible password must use the eye-off SVG');
           assert.ok(app.includes('node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon'), 'Button click must change the eye icon');
           assert.ok(app.includes('aria-controls="f-${name}"'), 'Eye icon should reference the password input');
-          assert.ok(html.includes('app.js?v=20261026-global-activity-loading'), 'Browser must fetch new password eye JavaScript');
+          assert.ok(html.includes('app.js?v=20261026-aligned-registration-actions'), 'Browser must fetch new password eye JavaScript');
           assert.ok(app.includes("node.setAttribute('aria-label',reveal?'Hide password':'Show password')"), 'Eye icon button must remain accessible');
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
@@ -106,7 +106,7 @@ jobs:
           assert.ok(app.includes('>Menu</button>'), 'Mobile menu button must be text-only');
           assert.ok(app.includes('class="password-toggle"'), 'Keep essential password eye toggle');
           assert.ok(css.includes('.hero-facts span::before{content:none;display:none}'), 'Landing checklist marks must be hidden');
-          assert.ok(html.includes('styles.css?v=20261026-global-activity-loading') && html.includes('app.js?v=20261026-global-activity-loading'), 'Mobile browsers must fetch fresh assets');
+          assert.ok(html.includes('styles.css?v=20261026-aligned-registration-actions') && html.includes('app.js?v=20261026-aligned-registration-actions'), 'Mobile browsers must fetch fresh assets');
           assert.match(html, /id="haven-loading"/, 'Global loading overlay must be available on all pages');
           assert.match(html, /id="haven-loading-message"/, 'Global loading status label must be accessible');
           assert.ok(app.includes('const activeLoaders=new Map()'), 'Concurrent operations must share a reference-counted loader');
@@ -147,11 +147,16 @@ jobs:
           assert.ok(app.includes("await mutation('DELETE',`/users/${userId}`"), 'Frontend must call backend delete endpoint');
           assert.ok(css.includes('.delete-user-warning{'), 'Permanent deletion needs a clear warning');
           assert.ok(app.includes('class="table-action user-management-actions"'), 'User Management action cells must have a dedicated alignment class');
-          assert.match(css, /\.user-management-actions\s*\{\s*display:grid;/, 'User action buttons must stack consistently');
+          assert.ok(app.includes('class="table-action registration-request-actions"'), 'Registration Requests must have an aligned action column');
+          assert.match(css, /\.registration-request-actions\s*\{[\s\S]*?grid-template-columns:minmax\(0,1fr\);/, 'Approve and Reject actions must be one column');
+          assert.match(css, /\.registration-request-actions \.button\s*\{[\s\S]*?width:100%;\s*min-width:0;\s*min-height:44px;/, 'Approve and Reject must use identical button widths and heights');
+          assert.ok(css.includes('.registration-request-actions{width:150px;min-width:150px;gap:8px}'), 'Registration buttons must be consistently sized for mobile');
+          assert.ok(app.includes('data-action="approve-user"') && app.includes('data-action="reject-user"'), 'Registration approval actions must stay interactive');
+          assert.match(css, /\.user-management-actions,\s*\.registration-request-actions\s*\{\s*display:grid;/, 'User and Registration buttons must stack consistently');
           assert.ok(css.includes('grid-template-columns:minmax(0,1fr);'), 'Button column must remain single-width');
-          assert.match(css, /\.user-management-actions \.button\s*\{\s*display:flex;/, 'Button centering must be scoped to user management');
+          assert.match(css, /\.user-management-actions \.button,\s*\.registration-request-actions \.button\s*\{\s*display:flex;/, 'Button centering must apply to both account tables');
           assert.match(css, /width:100%;\s*min-width:0;\s*min-height:44px;/, 'Review and Delete buttons must share their dimensions');
-          assert.ok(css.includes('.user-management-actions{width:150px;min-width:150px;gap:8px}'), 'Mobile buttons need consistent widths');
+          assert.match(css, /\.user-management-actions,\s*\.registration-request-actions\{width:150px;min-width:150px;gap:8px\}/, 'Mobile buttons need consistent widths');
           const smoke = fs.readFileSync('the-haven-webapp/backend/src/smoke-api.js', 'utf8');
           assert.ok(smoke.includes('Guest cannot permanently delete a student'), 'Guests must never delete users');
           assert.ok(smoke.includes('Administrator can never delete own account'), 'Never delete administrator in smoke tests');
