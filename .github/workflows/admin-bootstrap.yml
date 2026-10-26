@@ -1,0 +1,54 @@
+name: THE HAVEN - Create Initial Admin
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Prevent simultaneous initial-admin creation attempts.
+concurrency:
+  group: the-haven-initial-admin
+  cancel-in-progress: false
+
+jobs:
+  first-admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: the-haven-webapp/backend
+    steps:
+      - name: Checkout THE HAVEN
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check private secrets are present
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$MONGODB_URI" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
+            echo "::error::Missing MONGODB_URI, ADMIN_EMAIL, or ADMIN_PASSWORD repository Actions secret."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate backend scripts
+        run: npm run check
+
+      - name: Create first administrator in existing the_haven_db
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: the_haven_db
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_NAME: THE HAVEN Administrator
+        run: npm run admin:create
