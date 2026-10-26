@@ -1,0 +1,41 @@
+name: THE HAVEN - MongoDB Connection Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: the-haven-webapp/backend
+    steps:
+      - name: Get THE HAVEN source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check that the private MongoDB secret is configured
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          if [ -z "$MONGODB_URI" ]; then
+            echo "::error::Missing secret MONGODB_URI. Add it under repository Settings > Secrets and variables > Actions. Do not put credentials in code."
+            exit 1
+          fi
+
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check MongoDB connectivity without writing student records
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: the_haven_db
+        run: npm run db:check
