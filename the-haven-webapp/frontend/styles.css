@@ -981,7 +981,9 @@ input:disabled{background:#f5f3ef;color:#777268}
 
 /* Consistent Review / Disable / Reactivate + Delete User action alignment.
    Scoped to User Management so other tables keep their original layout. */
-.user-management-actions{
+/* Both account management and registration decisions use one alignment. */
+.user-management-actions,
+.registration-request-actions{
   display:grid;
   grid-template-columns:minmax(0,1fr);
   gap:9px;
@@ -989,7 +991,8 @@ input:disabled{background:#f5f3ef;color:#777268}
   min-width:156px;
   align-items:stretch;
 }
-.user-management-actions .button{
+.user-management-actions .button,
+.registration-request-actions .button{
   display:flex;
   justify-content:center;
   align-items:center;
@@ -1005,8 +1008,10 @@ input:disabled{background:#f5f3ef;color:#777268}
   text-align:center;
 }
 @media(max-width:640px){
-  .user-management-actions{width:150px;min-width:150px;gap:8px}
-  .user-management-actions .button{min-height:46px;padding:10px 9px}
+  .user-management-actions,
+  .registration-request-actions{width:150px;min-width:150px;gap:8px}
+  .user-management-actions .button,
+  .registration-request-actions .button{min-height:46px;padding:10px 9px}
 }
 
 
