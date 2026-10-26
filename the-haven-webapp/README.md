@@ -2,6 +2,18 @@
 
 > **Repository status (2026-10-26):** This project is already uploaded to **https://github.com/markgwapo123/thea** under `the-haven-webapp/`. **Do not deploy to Vercel yet.** MongoDB connection utilities are in `backend/src/check-db.js`, with instructions in `DATABASE_SETUP.md`. **No real database password or connection URI is committed.** The database connection has not been verified; configure your private `backend/.env` before running `npm run db:check`. When deployment is requested, the Vercel root will be `the-haven-webapp/frontend` and the backend directory will be `the-haven-webapp/backend`. The original setup section below was written before this repository was created; use the updated instructions above instead.
 
+## Access update — Administrator approval and member announcements (2026-10-26)
+
+**Current source has a new registration flow.** Public registration creates a **pending** student account. Applicants may sign in to see Pending / Rejected status, but **only administrators can approve registration** and unlock member dashboard access.
+
+After approval, the **regular member** interface is limited to **admin announcements on the dashboard, club officers/advisers, and personal account settings**. Officers and advisers are listed read-only and do not get system management privileges. Administrators retain all management pages and can **publish announcements, approve/reject applicants, assign/remove officers or advisers, create additional administrators, and change the website name or logo**.
+
+Details and endpoint policies: [ROLE_ACCESS.md](ROLE_ACCESS.md).
+
+**Source-code update only.** The code has not been live-deployed; the standalone frontend still uses `DEMO_MODE: true` until the MongoDB-backed API is configured. The default official logo is preserved until an admin uploads a new supported image. Existing active accounts are not automatically changed to pending.
+
+---
+
 ### Online Club Registration and Management System · Fellowship Baptist College
 
 A responsive web app using the **original uploaded THE HAVEN logo**. Frontend: plain HTML/CSS/JavaScript. Backend: Node.js/Express. Database: MongoDB Atlas. Designed for Vercel + Render deployment.
