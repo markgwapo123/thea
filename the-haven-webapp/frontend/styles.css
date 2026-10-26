@@ -925,3 +925,19 @@ input:disabled{background:#f5f3ef;color:#777268}
 .leader-card{gap:0}
 @media(max-width:900px){.topbar{gap:12px}.top-role{font-size:11px}}
 @media(max-width:640px){.top-role{display:none}.mobile-menu-btn{min-width:62px;min-height:44px;font-size:12px}.club-card .club-body{padding:20px 18px}}
+
+/* Latest registration-status feedback, displayed after each manual check. */
+.approval-check-feedback{
+  min-height:20px;
+  max-width:430px;
+  margin:2px auto 18px;
+  font-size:13px;
+  line-height:1.65;
+  color:#776441;
+  text-align:center;
+  overflow-wrap:break-word;
+}
+.approval-actions .button:disabled{opacity:.7;cursor:wait}
+@media(max-width:640px){
+  .approval-check-feedback{font-size:12px;margin:4px auto 16px}
+}
