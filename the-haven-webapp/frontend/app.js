@@ -7,7 +7,10 @@
   const LOGO = './assets/haven-logo.png';
   const DEFAULT_BRAND = "THE HAVEN: PEER FACILITATORS' COMMUNITY";
   const brandName=()=>String(state.settings?.branding?.name||DEFAULT_BRAND);
-  const brandLogo=()=>state.settings?.branding?.logoDataUrl||LOGO;
+  const brandLogo=()=>{
+    const value=state.settings?.branding?.logoDataUrl;
+    return typeof value==='string'&&value.length<=480000&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)?value:LOGO;
+  };
   const brandParts=()=>{const [a,...b]=brandName().split(':');return [a.trim(),b.join(':').trim()];};
   function applyBranding(){
     document.title=brandName()+' | Fellowship Baptist College';
