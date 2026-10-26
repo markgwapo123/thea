@@ -1477,3 +1477,165 @@ h1,h2,h3,h4,h5,h6{line-height:1.3;letter-spacing:-.022em}
   overflow-wrap:normal;
   word-break:normal;
 }
+
+
+/* Clickable announcement previews across member dashboard, Admin news and
+   Announcement page. The full message lives in an accessible read-only modal. */
+.announcement-card-button{
+  display:block;
+  width:100%;
+  min-width:0;
+  margin:0;
+  font:inherit;
+  text-align:left;
+  color:inherit;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease;
+}
+.announcement-card-button .community-announcement-meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.announcement-card-title{
+  display:block;
+  margin:16px 0 9px;
+  color:#403728;
+  font-size:17px;
+  font-weight:750;
+  line-height:1.4;
+  letter-spacing:-.017em;
+  overflow-wrap:anywhere;
+}
+.announcement-card-excerpt{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:3;
+  line-clamp:3;
+  overflow:hidden;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  color:#6b655b;
+  font-size:14px;
+  line-height:1.65;
+}
+.announcement-card-author{
+  display:block;
+  margin-top:15px;
+  color:#878074;
+  font-size:12px;
+  line-height:1.5;
+}
+.announcement-card-link{
+  display:inline-block;
+  margin-top:12px;
+  color:#936f2f;
+  font-size:12px;
+  font-weight:800;
+}
+.announcement-card-button:hover,
+.dashboard-update-card:hover{
+  border-color:#d8bd89;
+  box-shadow:0 8px 25px rgba(84,63,30,.08);
+}
+.announcement-card-button:active,
+.dashboard-update-card:active{transform:scale(.995)}
+.announcement-card-button:focus-visible,
+.dashboard-update-card:focus-visible{
+  outline:3px solid #bd9550;
+  outline-offset:3px;
+}
+.dashboard-update-card{
+  width:100%;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+  font:inherit;
+  cursor:pointer;
+  transition:background .16s ease,box-shadow .16s ease;
+}
+.dashboard-update-card:hover{background:#fffaf1}
+.dashboard-update-excerpt{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  color:#77716a;
+  font-size:12px;
+  line-height:1.6;
+  margin:5px 0;
+  overflow-wrap:anywhere;
+}
+.dashboard-update-read{
+  color:#987637;
+  font-size:12px;
+  font-weight:750;
+  white-space:nowrap;
+}
+.announcement-detail-modal{
+  max-width:590px;
+  padding:30px;
+  font-family:var(--font-ui);
+}
+.announcement-modal-header{
+  margin-bottom:14px;
+  align-items:center;
+}
+.announcement-modal-header .dashboard-section-label{margin:0}
+.announcement-modal-meta{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px 15px;
+  margin-bottom:16px;
+}
+.announcement-modal-title{
+  font-family:var(--font-ui);
+  font-size:clamp(22px,3vw,29px);
+  font-weight:750;
+  line-height:1.28;
+  letter-spacing:-.028em;
+  color:#3c362d;
+  margin:0 0 20px;
+  overflow-wrap:anywhere;
+}
+.announcement-modal-content{
+  color:#625b51;
+  font-size:15px;
+  line-height:1.8;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+.announcement-modal-author{
+  margin:22px 0 0;
+  padding-top:17px;
+  border-top:1px solid #ece5d9;
+  color:#81786d;
+  font-size:13px;
+  line-height:1.6;
+}
+.announcement-modal-author strong{color:#554b3c;font-weight:750}
+.announcement-modal-footer{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:22px;
+}
+.announcement-modal-footer .button{min-width:110px}
+@media(max-width:640px){
+  .announcement-card-button{padding:19px 18px}
+  .announcement-card-title{font-size:16px}
+  .announcement-detail-modal{padding:23px 18px calc(20px + env(safe-area-inset-bottom))}
+  .announcement-modal-title{font-size:24px}
+  .announcement-modal-content{font-size:14px;line-height:1.75}
+  .announcement-modal-footer .button{width:100%;min-height:46px}
+}
+@media(prefers-reduced-motion:reduce){
+  .announcement-card-button,.dashboard-update-card{transition:none}
+  .announcement-card-button:active,.dashboard-update-card:active{transform:none}
+}
