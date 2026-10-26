@@ -589,6 +589,46 @@
     return topHeading('Account Settings','Update your profile and account security.')+
       `<div class="profile-settings-grid"><div class="panel"><h3 class="panel-title">My Profile</h3><div class="profile-fields"><div><span>Name</span><strong>${escapeHtml(u.fullName)}</strong></div><div><span>Email</span><strong>${escapeHtml(u.email)}</strong></div><div><span>Student ID</span><strong>${escapeHtml(u.studentId||'—')}</strong></div><div><span>Department</span><strong>${escapeHtml(u.department||'—')}</strong></div><div><span>Year Level</span><strong>${escapeHtml(u.yearLevel||'—')}</strong></div><div><span>Status</span><strong>Approved</strong></div></div>${u.role==='student'?`<details class="registration-profile-details"><summary>My registration information</summary><div class="registration-profile-body"><div><strong>Age</strong><p>${escapeHtml(u.age??'Not provided')}</p></div><div><strong>Address</strong><p>${escapeHtml(u.address||'Not provided')}</p></div><div><strong>Skills</strong><p>${escapeHtml(u.skills||'Not provided')}</p></div><div><strong>Talents</strong><p>${escapeHtml(u.talents||'Not provided')}</p></div><div><strong>Why I joined this organization</strong><p>${escapeHtml(u.joinReason||'Not provided')}</p></div></div></details>`:''}<button class="button secondary sm" data-action="edit-profile">Edit Profile</button></div><div class="panel"><h3 class="panel-title">Account Security</h3><p class="small muted">Your password is private. Updating profile information cannot change account approval or role.</p><button class="button secondary sm" data-action="change-password">Change Password</button></div></div>`;
   }
+  // Read-only registration details, accessible only from the Admin workspace.
+  function viewRegistration(userId){
+    if(!isAdmin())return;
+    const applicant=state.users.find(user=>user.role==='student'&&id(user)===userId);
+    if(!applicant){toast('Student registration not found. Please reload User Management.',true);return;}
+    const fallback=value=>value===undefined||value===null||String(value).trim()===''?'Not provided':value;
+    const row=(label,value)=>`<div class="registration-detail-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(fallback(value))}</strong></div>`;
+    if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
+    document.body.classList.add('modal-open');
+    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop">
+      <div class="modal wide registration-detail-modal" role="dialog" aria-modal="true" aria-labelledby="registration-detail-heading">
+        <div class="modal-header">
+          <h2 id="registration-detail-heading">Student Registration Details</h2>
+          <button type="button" class="close-modal" data-action="close-modal" aria-label="Close registration details">×</button>
+        </div>
+        <div class="registration-detail-intro">
+          <strong>${escapeHtml(applicant.fullName)}</strong>
+          <span>${escapeHtml(applicant.email)}</span>
+          <span>Account status: ${escapeHtml(applicant.status)}</span>
+        </div>
+        <div class="registration-detail-grid">
+          ${row('Student ID',applicant.studentId)}
+          ${row('Age',applicant.age)}
+          ${row('Year Level',applicant.yearLevel)}
+          ${row('Department / Program',applicant.department)}
+          ${row('Address',applicant.address)}
+          ${row('Skills',applicant.skills)}
+          ${row('Talents',applicant.talents)}
+        </div>
+        <section class="registration-detail-reason">
+          <h3>Why did you join this organization?</h3>
+          <p>${escapeHtml(fallback(applicant.joinReason))}</p>
+        </section>
+        <div class="registration-detail-footer">
+          <button type="button" class="button secondary" data-action="close-modal">Close</button>
+        </div>
+      </div>
+    </div>`;
+    $('#modal-root .close-modal')?.focus();
+  }
   function adminRegistrationsPage(){
     if(!isAdmin())return denied();
     const pending=state.users.filter(u=>u.role==='student'&&u.status==='pending');
@@ -881,6 +921,7 @@
       return;
     }
     if(type==='view-announcement'){viewAnnouncement(itemId);return;}
+    if(type==='view-registration'){viewRegistration(itemId);return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
     if(type==='sidebar-toggle'){state.sidebar=!state.sidebar;render();return;}
