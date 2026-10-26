@@ -6,6 +6,7 @@ const base = 'http://127.0.0.1:' + port;
 const email = String(process.env.ADMIN_EMAIL || '').trim();
 const password = String(process.env.ADMIN_PASSWORD || '');
 const jwtSecret = process.env.JWT_SECRET || '';
+const singleOrigin = process.env.SMOKE_SINGLE_ORIGIN === 'true';
 
 // Report which setting is invalid without printing its value.
 const checks = [
@@ -28,8 +29,9 @@ const server = spawn(process.execPath, ['src/server.js'], {
   env: {
     ...process.env,
     PORT: String(port),
-    NODE_ENV: 'development',
-    FRONTEND_ORIGINS: base + ',http://localhost:' + port
+    NODE_ENV: singleOrigin ? 'production' : 'development',
+    FRONTEND_ORIGINS: base + ',http://localhost:' + port,
+    ...(singleOrigin ? { SERVE_FRONTEND: 'true', PUBLIC_BASE_URL: base, CROSS_SITE_COOKIES: 'false' } : {})
   },
   stdio: 'ignore'
 });
@@ -63,6 +65,21 @@ try {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   check(health?.status === 'ok', 'Express startup and MongoDB health');
+  if (singleOrigin) {
+    const home = await get('/');
+    const html = await home.text();
+    check(home.status === 200 && html.includes('THE HAVEN | Peer Facilitators'), 'Live frontend HTML served from backend');
+
+    const config = await get('/config.js');
+    const js = await config.text();
+    check(config.status === 200 && js.includes('DEMO_MODE: false') && js.includes("API_BASE_URL: '/api'"), 'Live frontend switches from demo to same-origin API');
+    check(!js.includes('MONGODB_URI') && !js.includes('JWT_SECRET'), 'Public frontend config contains no backend secrets');
+
+    const logo = await get('/assets/haven-logo.png');
+    check(logo.status === 200 && (logo.headers.get('content-type') || '').includes('image'), 'Original THE HAVEN logo asset served');
+
+    check(Boolean(home.headers.get('content-security-policy')), 'Production Content Security Policy enabled');
+  }
 
   const clubs = await get('/api/clubs');
   const clubBody = await clubs.json();
