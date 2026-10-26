@@ -9,6 +9,19 @@ A database connection string containing a password was previously shared in chat
 
 Prefer a dedicated Atlas database user `haven_app` with **readWrite on the_haven_db only**, rather than broad admin permissions. In Atlas Network Access, allow the IP address of the machine/server running your backend.
 
+## Initialize the actual the_haven_db in GitHub (phone-friendly)
+
+The GitHub backend already targets **the_haven_db** via `MONGODB_DB_NAME`. A screenshot confirms this database exists in Cluster0 and currently has an empty `users` collection.
+
+1. Confirm that the repository's private `MONGODB_URI` GitHub Actions secret uses **rotated** credentials with access to the_haven_db. No credentials should be committed to GitHub.
+2. Open https://github.com/markgwapo123/thea/actions/workflows/mongodb-initialize.yml .
+3. Click **Run workflow** on the `main` branch.
+4. A green `initialize-the-haven-db` job means that nine collections and schema indexes were checked/created. Existing documents are retained; the command **does not insert sample clubs, student accounts, or an administrator**.
+
+Collections: `users`, `clubs`, `clubstaffs`, `applications`, `memberships`, `announcements`, `notifications`, `auditlogs`, and `settings`. Names derive from the currently committed Mongoose models.
+
+**This step is database setup only.** The web frontend remains in DEMO_MODE until a real Express backend runs privately using MONGODB_URI and JWT_SECRET; no Vercel deployment is part of this workflow.
+
 ## No laptop? Test from GitHub Actions (without Vercel/Render deployment)
 
 1. **Rotate the old shared Atlas password first.** Use a dedicated least-privilege database account for THE HAVEN.
