@@ -71,6 +71,8 @@
     if(path.includes('/review'))return 'Saving review decision...';
     if(path==='/admin/accounts')return 'Creating administrator...';
     if(path==='/announcements'&&method==='POST')return 'Publishing announcement...';
+    if(path.startsWith('/announcements/')&&method==='PATCH')return 'Saving announcement...';
+    if(path.startsWith('/announcements/')&&method==='DELETE')return 'Deleting announcement...';
     if(path==='/staff'&&method==='POST')return 'Assigning leadership...';
     if(path==='/me/password')return 'Updating password...';
     if(method==='GET')return 'Loading information...';
@@ -82,6 +84,8 @@
     if(label==='Create Account')return 'Creating account...';
     if(label==='Delete Student')return 'Deleting...';
     if(label==='Publish Announcement')return 'Publishing...';
+    if(label==='Save Announcement')return 'Saving...';
+    if(label==='Delete Announcement')return 'Deleting...';
     if(label==='Approve Account')return 'Approving...';
     if(label==='Reject Account')return 'Rejecting...';
     if(label==='Close'||label==='Back')return '';
@@ -266,6 +270,23 @@
     if(cleanPath==='/announcements'&&method==='POST'){
       if(!admin)err('Administrator permission required.');const a={_id:newId('n'),...payload,authorId:user._id,createdAt:new Date().toISOString()};demo.announcements.push(a);return saved({announcement:a});
     }
+    if(parts[0]==='announcements'&&parts[1]&&method==='PATCH'){
+      if(!admin)err('Administrator permission required.');
+      const a=demo.announcements.find(item=>item._id===parts[1]);
+      if(!a)err('Announcement not found.');
+      const title=String(payload.title||'').trim(),body=String(payload.body||'').trim();
+      if(title.length<3||title.length>160||body.length<8||body.length>3000)err('Enter a valid title and message.');
+      if(payload.clubId && !clubAt(payload.clubId))err('Selected community is not available.');
+      Object.assign(a,{title,body,clubId:payload.clubId||null,updatedAt:new Date().toISOString()});
+      return saved({announcement:a});
+    }
+    if(parts[0]==='announcements'&&parts[1]&&method==='DELETE'){
+      if(!admin)err('Administrator permission required.');
+      if(payload.confirmation!=='DELETE')err('Type DELETE to confirm permanent removal.');
+      const index=demo.announcements.findIndex(item=>item._id===parts[1]);
+      if(index===-1)err('Announcement not found.');
+      demo.announcements.splice(index,1);return saved({ok:true});
+    }
     if(cleanPath==='/notifications'&&method==='GET')return {notifications:demo.notifications.filter(n=>n.userId===user?._id).reverse()};
     if(parts[0]==='notifications'&&parts[2]==='read'&&method==='PATCH'){const n=demo.notifications.find(x=>x._id===parts[1]&&x.userId===user?._id);if(n)n.read=true;return saved({ok:true});}
     if(cleanPath==='/users'&&method==='GET'){if(!admin)err('Administrator only.');return {users:demo.users};}
@@ -365,10 +386,10 @@
     catch(e){toast(e.message,true);return false;}
     finally{state.busy=false;endLoading();}
   }
-  function showModal(title,body,onSubmit,{wide=false,submitLabel='Save changes',subtitle='',danger=false}={}){
+  function showModal(title,body,onSubmit,{wide=false,submitLabel='Save changes',subtitle='',danger=false,centered=false}={}){
     if(!$('#modal-root').childElementCount)modalReturnFocus=document.activeElement;
     document.body.classList.add('modal-open');
-    $('#modal-root').innerHTML=`<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'THE HAVEN dialog')}"><div class="modal-header ${title?'':'no-title'}">${title?'<h2>'+escapeHtml(title)+'</h2>':''}<button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button ${danger?'danger':'primary'}">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
+    $('#modal-root').innerHTML=`<div class="modal-backdrop ${centered?'announcement-modal-backdrop':''}" data-action="modal-backdrop"><div class="modal ${wide?'wide':''} ${centered?'announcement-detail-modal':''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'THE HAVEN dialog')}"><div class="modal-header ${title?'':'no-title'}">${title?'<h2>'+escapeHtml(title)+'</h2>':''}<button type="button" class="close-modal" data-action="close-modal" aria-label="Close">×</button></div>${subtitle?`<p class="modal-sub">${escapeHtml(subtitle)}</p>`:''}<form id="modal-form">${body}<div class="modal-footer"><button class="button ghost" type="button" data-action="close-modal">Cancel</button><button type="submit" class="button ${danger?'danger':'primary'}">${escapeHtml(submitLabel)}</button></div></form></div></div>`;
     const form=$('#modal-form');
     form.addEventListener('submit',async ev=>{
       ev.preventDefault();
@@ -580,12 +601,55 @@
         <h2 class="announcement-modal-title" id="announcement-modal-heading">${escapeHtml(announcement.title)}</h2>
         <div class="announcement-modal-content" id="announcement-modal-content">${escapeHtml(announcement.body||'')}</div>
         <p class="announcement-modal-author">Posted by <strong>${escapeHtml(announcement.authorId?.fullName||'THE HAVEN')}</strong></p>
-        <div class="announcement-modal-footer"><button type="button" class="button secondary" data-action="close-modal">Close</button></div>
+        <div class="announcement-modal-footer">
+          ${isAdmin()?`<div class="announcement-admin-actions" aria-label="Manage announcement">
+            <button type="button" class="button secondary" data-action="edit-announcement" data-id="${escapeHtml(announcementId)}">Edit</button>
+            <button type="button" class="button danger" data-action="delete-announcement" data-id="${escapeHtml(announcementId)}">Delete</button>
+          </div>`:''}
+          <button type="button" class="button secondary" data-action="close-modal">Close</button>
+        </div>
       </div>
     </div>`;
     $('#modal-root .close-modal')?.focus();
   }
 
+  function editAnnouncement(announcementId){
+    if(!isAdmin())return;
+    const announcement=state.announcements.find(item=>id(item)===announcementId);
+    if(!announcement)return toast('Announcement not found. Refresh and try again.',true);
+    const clubId=id(announcement.clubId)||'';
+    const clubChoices=[{value:'',label:'School-wide'},...state.clubs
+      .filter(club=>club.status!=='archived')
+      .map(club=>({value:id(club),label:club.name}))];
+    if(clubId&&!clubChoices.some(choice=>choice.value===clubId)){
+      clubChoices.push({value:clubId,label:announcement.clubId?.name||'Current community'});
+    }
+    showModal('Edit Announcement',
+      choose('clubId','Post To',clubChoices,clubId)+
+      field('title','Title','text',announcement.title,'required minlength="3" maxlength="160"')+
+      textarea('body','Announcement Message',announcement.body,'required minlength="8" maxlength="3000"'),
+      data=>mutation('PATCH',`/announcements/${announcementId}`,data,'Announcement updated.'),
+      {submitLabel:'Save Announcement',centered:true});
+  }
+  function deleteAnnouncement(announcementId){
+    if(!isAdmin())return;
+    const announcement=state.announcements.find(item=>id(item)===announcementId);
+    if(!announcement)return toast('Announcement not found. Refresh and try again.',true);
+    const warning=`<div class="announcement-delete-warning">
+      <strong>Permanently delete this announcement?</strong>
+      <p>It will disappear from all Admin and User announcement feeds. This cannot be undone.</p>
+      <p class="announcement-delete-title">${escapeHtml(announcement.title)}</p>
+    </div>`;
+    showModal('Delete Announcement',warning+
+      field('confirmation','Type DELETE to confirm','text','','required pattern="DELETE" maxlength="6" autocomplete="off" spellcheck="false" placeholder="DELETE"'),
+      async data=>{
+        if(data.confirmation!=='DELETE'){
+          toast('Type DELETE exactly to confirm.',true);
+          return;
+        }
+        await mutation('DELETE',`/announcements/${announcementId}`,{confirmation:'DELETE'},'Announcement deleted.');
+      },{submitLabel:'Delete Announcement',danger:true,centered:true});
+  }
   function leadershipPage(){
     const leaders=state.leaders||[];
     const clubNames=[...new Set(leaders.map(x=>x.clubName))];
@@ -973,6 +1037,8 @@
       return;
     }
     if(type==='view-announcement'){viewAnnouncement(itemId);return;}
+    if(type==='edit-announcement'){editAnnouncement(itemId);return;}
+    if(type==='delete-announcement'){deleteAnnouncement(itemId);return;}
     if(type==='navigate'){nav(node.dataset.route);return;}
     if(type.startsWith('go-')){nav(({ 'go-clubs':'clubs', 'go-dashboard':'dashboard', 'go-home':'home', 'go-review':'staff-applications' })[type]||'home');return;}
     if(type==='sidebar-toggle'){state.sidebar=!state.sidebar;render();return;}

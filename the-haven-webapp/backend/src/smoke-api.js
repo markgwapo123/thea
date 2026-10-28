@@ -90,6 +90,18 @@ try {
   check(settings.status === 200 && typeof settingBody.academicYear === 'string' && typeof settingBody.branding?.name === 'string', 'Public settings and branding API');
   const guestAnnouncements = await get('/api/announcements');
   check(guestAnnouncements.status === 401, 'Guest cannot access community announcements');
+  const guestAnnouncementEdit = await get('/api/announcements/507f1f77bcf86cd799439011', {
+    method: 'PATCH',
+    headers: { Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'No permission', body: 'No access permitted', clubId: '' })
+  });
+  check(guestAnnouncementEdit.status === 401, 'Guest cannot edit announcements');
+  const guestAnnouncementDelete = await get('/api/announcements/507f1f77bcf86cd799439011', {
+    method: 'DELETE',
+    headers: { Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmation: 'DELETE' })
+  });
+  check(guestAnnouncementDelete.status === 401, 'Guest cannot delete announcements');
   const guestLeadership = await get('/api/leadership');
   check(guestLeadership.status === 401, 'Guest cannot access leadership directory');
   const blockedAdminCreate = await get('/api/admin/accounts', {method:'POST',headers:{'Content-Type':'application/json',Origin:base},body:'{}'});
@@ -139,6 +151,27 @@ try {
     body: '{}'
   });
   check(unconfirmedDelete.status === 400, 'Account deletion requires explicit typed confirmation');
+
+  // Announcement mutation tests are intentionally invalid/unauthorized only.
+  // Never delete or update a real announcement during production smoke tests.
+  const invalidAnnouncementEdit = await get('/api/announcements/not-an-id', {
+    method: 'PATCH',
+    headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: 'Sample change', body: 'Should never be saved', clubId: '' })
+  });
+  check(invalidAnnouncementEdit.status === 400, 'Announcement edits validate the ID');
+  const invalidAnnouncementDelete = await get('/api/announcements/not-an-id', {
+    method: 'DELETE',
+    headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmation: 'DELETE' })
+  });
+  check(invalidAnnouncementDelete.status === 400, 'Announcement deletion validates the ID');
+  const unconfirmedAnnouncementDelete = await get('/api/announcements/507f1f77bcf86cd799439011', {
+    method: 'DELETE',
+    headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  check(unconfirmedAnnouncementDelete.status === 400, 'Announcement deletion requires typed confirmation');
 
   const stats = await get('/api/stats', { headers: { Cookie: cookie } });
   check(stats.status === 200, 'Dashboard statistics endpoint');
