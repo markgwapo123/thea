@@ -66,7 +66,7 @@ jobs:
           assert.match(css, /@media\(max-width:800px\)\s*\{[\s\S]*?\.public-hero\.hero-simple \.hero-actions\s*\{\s*display:grid;\s*grid-template-columns:minmax\(0,1fr\);/, 'Hero mobile actions must stack in one full-width column');
           assert.match(css, /\.public-hero\.hero-simple \.hero-actions \.button\s*\{[^}]*white-space:normal;[^}]*overflow-wrap:break-word;/, 'Hero button labels must wrap within their own bounds instead of overlapping');
           assert.match(css, /\.public-hero\.hero-simple \.public-art\s*\{[^}]*margin:10px auto 0;/, 'Hero illustration must sit below mobile text');
-          assert.ok(html.includes('styles.css?v=20261026-student-registration-details'), 'Updated CSS must bypass stale browser cache');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete'), 'Updated CSS must bypass stale browser cache');
           assert.match(html, /class="splash-emblem"/, 'Splash logo must have a shared emblem container');
           assert.match(html, /class="splash-ring splash-ring-outer"/, 'Outer splash ring missing');
           assert.match(html, /class="splash-ring splash-ring-inner"/, 'Inner splash ring missing');
@@ -95,7 +95,7 @@ jobs:
           assert.match(app, /const passwordEyeOffIcon = '<svg /, 'Visible password must use the eye-off SVG');
           assert.ok(app.includes('node.innerHTML=reveal?passwordEyeOffIcon:passwordEyeIcon'), 'Button click must change the eye icon');
           assert.ok(app.includes('aria-controls="f-${name}"'), 'Eye icon should reference the password input');
-          assert.ok(html.includes('app.js?v=20261026-student-registration-details'), 'Browser must fetch new password eye JavaScript');
+          assert.ok(html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Browser must fetch new password eye JavaScript');
           assert.ok(app.includes("node.setAttribute('aria-label',reveal?'Hide password':'Show password')"), 'Eye icon button must remain accessible');
           assert.ok(css.includes('.password-toggle svg{display:block;width:22px;height:22px;pointer-events:none}'), 'Icon must be centered inside the button');
           assert.ok(css.includes('.password-field .input{padding-right:59px}'), 'Input must reserve space for the eye icon');
@@ -106,7 +106,7 @@ jobs:
           assert.ok(app.includes('>Menu</button>'), 'Mobile menu button must be text-only');
           assert.ok(app.includes('class="password-toggle"'), 'Keep essential password eye toggle');
           assert.ok(css.includes('.hero-facts span::before{content:none;display:none}'), 'Landing checklist marks must be hidden');
-          assert.ok(html.includes('styles.css?v=20261026-student-registration-details') && html.includes('app.js?v=20261026-student-registration-details'), 'Mobile browsers must fetch fresh assets');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete') && html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Mobile browsers must fetch fresh assets');
           assert.ok(app.includes('data-action="view-announcement"'), 'Announcement cards must support click-to-view');
           assert.ok(app.includes('class="modal-backdrop announcement-modal-backdrop"'), 'Announcement viewer must use a separately styled overlay');
           assert.ok(css.includes('.modal-backdrop:not(.announcement-modal-backdrop){'), 'All standard dialogs must share a centered overlay');
@@ -116,13 +116,13 @@ jobs:
           assert.match(css, /\.modal-backdrop:not\(\.announcement-modal-backdrop\) > \.modal\.wide\s*\{[^}]*max-width:695px;/, 'Wide forms must retain desktop width');
           assert.match(css, /\.modal-backdrop:not\(\.announcement-modal-backdrop\) > \.modal::before\s*\{[^}]*display:none;/, 'All modals must hide the old bottom-sheet drag handle');
           assert.ok(css.includes('env(safe-area-inset-bottom)'), 'Centered dialogs must respect phone safe areas');
-          assert.ok(html.includes('styles.css?v=20261026-student-registration-details') && html.includes('app.js?v=20261026-student-registration-details'), 'Phone must reload all centered modal assets');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete') && html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Phone must reload all centered modal assets');
           assert.match(css, /\.announcement-modal-backdrop\s*\{[^}]*align-items:center;[^}]*justify-content:center;/, 'Announcement overlay must center on both axes');
           assert.match(css, /@media\(max-width:640px\)\s*\{\s*\.announcement-modal-backdrop\s*\{[^}]*align-items:center;[^}]*justify-content:center;/, 'Mobile announcement overlay must remain centered');
           assert.match(css, /\.announcement-modal-backdrop \.announcement-detail-modal::before\s*\{[^}]*display:none;/, 'Announcement dialog must not show bottom-sheet handle');
           assert.match(css, /\.announcement-modal-backdrop \.announcement-detail-modal\s*\{[^}]*max-height:[^;]+;[^}]*overflow-y:auto;/, 'Long announcements must scroll within a centered modal');
           assert.ok(css.includes('.announcement-modal-backdrop .announcement-detail-modal{'), 'Announcement centering must not affect other modal forms');
-          assert.ok(html.includes('styles.css?v=20261026-student-registration-details') && html.includes('app.js?v=20261026-student-registration-details'), 'Mobile phone must download the refreshed centered modal CSS and JS');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete') && html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Mobile phone must download the refreshed centered modal CSS and JS');
           assert.ok(app.includes('function viewAnnouncement(announcementId)'), 'Read-only announcement modal must be available');
           assert.ok(app.includes("state.announcements.find(item=>id(item)===announcementId)"), 'Announcement modal must resolve existing state data');
           assert.ok(app.includes('role="dialog" aria-modal="true" aria-labelledby="announcement-modal-heading"'), 'Announcement detail must have accessible dialog semantics');
@@ -190,7 +190,7 @@ jobs:
           assert.match(css, /\.user-management-table th:nth-child\(2\),\s*\.user-management-table td:nth-child\(2\)\s*\{[^}]*white-space:nowrap;/, 'User Management Student ID header and values must stay on one line');
           assert.match(css, /\.user-management-table table\s*\{[^}]*min-width:940px;/, 'User Management columns must have sufficient table width');
           assert.match(css, /\.user-management-table\s*\{[^}]*overflow-x:auto;/, 'User Management table must scroll inside its container on mobile');
-          assert.ok(html.includes('styles.css?v=20261026-student-registration-details') && html.includes('app.js?v=20261026-student-registration-details'), 'Mobile browsers must load fresh User Management styles');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete') && html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Mobile browsers must load fresh User Management styles');
           assert.ok(app.includes('class="table-action registration-request-actions"'), 'Registration Requests must have an aligned action column');
           assert.ok(app.includes('class="table-wrap registration-requests-table"'), 'Registration tables must use the scoped nonwrapping column layout');
           const models = fs.readFileSync('the-haven-webapp/backend/src/models.js','utf8');
@@ -212,7 +212,7 @@ jobs:
           assert.ok(css.includes('.registration-requests-table th:nth-child(2),'), 'Student ID header and cell must be targeted');
           assert.match(css, /\.registration-requests-table td:nth-child\(2\)\s*\{[^}]*white-space:nowrap;/, 'Student ID heading and values must stay on one line');
           assert.match(css, /\.registration-requests-table table\s*\{[^}]*min-width:880px;/, 'Registration table must reserve enough width and allow horizontal scrolling');
-          assert.ok(html.includes('styles.css?v=20261026-student-registration-details') && html.includes('app.js?v=20261026-student-registration-details'), 'Mobile browsers must fetch the refreshed registration table styles');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete') && html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Mobile browsers must fetch the refreshed registration table styles');
           assert.match(css, /\.registration-request-actions\s*\{[\s\S]*?grid-template-columns:minmax\(0,1fr\);/, 'Approve and Reject actions must be one column');
           assert.match(css, /\.registration-request-actions \.button\s*\{[\s\S]*?width:100%;\s*min-width:0;\s*min-height:44px;/, 'Approve and Reject must use identical button widths and heights');
           assert.ok(css.includes('.registration-request-actions{width:150px;min-width:150px;gap:8px}'), 'Registration buttons must be consistently sized for mobile');
@@ -226,5 +226,26 @@ jobs:
           assert.ok(smoke.includes('Guest cannot permanently delete a student'), 'Guests must never delete users');
           assert.ok(smoke.includes('Administrator can never delete own account'), 'Never delete administrator in smoke tests');
           assert.ok(smoke.includes('Account deletion requires explicit typed confirmation'), 'Reject unconfirmed deletion');
+          assert.ok(api.includes("app.patch('/api/announcements/:id', auth, onlyAdmin"), 'Announcement editing must require administrator role on backend');
+          assert.ok(api.includes("app.delete('/api/announcements/:id', auth, onlyAdmin"), 'Announcement deletion must require administrator role on backend');
+          assert.ok(api.includes("req.body?.confirmation !== 'DELETE'"), 'Deletion must require explicit typed confirmation');
+          assert.ok(api.includes("Announcement not found.', 404"), 'Deleted/missing announcements must be handled');
+          assert.ok(api.includes("'announcement_updated'") && api.includes("'announcement_deleted'"), 'Admin announcement changes must be audited');
+          assert.ok(app.includes("function editAnnouncement(announcementId)"), 'Edit action must be available to Admin');
+          assert.ok(app.includes("function deleteAnnouncement(announcementId)"), 'Delete confirmation must be available to Admin');
+          assert.ok(app.includes("const announcement=state.announcements.find(item=>id(item)===announcementId)"), 'Admin announcement forms must load existing record');
+          assert.ok(app.includes("if(!isAdmin())return;"), 'Admin-only frontend operations must check role');
+          assert.ok(app.includes("${isAdmin()?`<div class=\"announcement-admin-actions\""), 'Edit/Delete buttons must only render to Admin');
+          assert.ok(app.includes("if(type==='edit-announcement'){editAnnouncement(itemId);return;}"), 'Card modal must open Admin edit form');
+          assert.ok(app.includes("if(type==='delete-announcement'){deleteAnnouncement(itemId);return;}"), 'Card modal must open Admin delete confirmation');
+          assert.ok(app.includes("mutation('PATCH',`/announcements/${announcementId}`"), 'Edit modal must send authenticated PATCH');
+          assert.ok(app.includes("mutation('DELETE',`/announcements/${announcementId}`"), 'Delete modal must send authenticated DELETE');
+          assert.ok(app.includes("if(data.confirmation!=='DELETE')"), 'Admin delete form must verify typed confirmation');
+          assert.ok(app.includes("centered:true"), 'Announcement edit and delete forms must be centered');
+          assert.ok(css.includes('.announcement-admin-actions{'), 'Announcement management controls need responsive styling');
+          assert.ok(css.includes('.announcement-delete-warning{'), 'Deletion must display a clear warning');
+          assert.ok(smoke.includes('Guest cannot edit announcements') && smoke.includes('Guest cannot delete announcements'), 'Guests must not modify announcements');
+          assert.ok(smoke.includes('Announcement deletion requires typed confirmation'), 'Deletion smoke test must remain non-destructive');
+          assert.ok(html.includes('styles.css?v=20261028-announcement-admin-edit-delete') && html.includes('app.js?v=20261028-announcement-admin-edit-delete'), 'Users must load the new announcement management assets');
           console.log('THE HAVEN UI checks passed. No deployment occurred.');
           NODE
