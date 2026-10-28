@@ -367,6 +367,32 @@ app.post('/api/announcements', auth, onlyAdmin, wrap(async (req, res) => {
   res.status(201).json({ announcement });
 }));
 
+// Announcements are visible to approved members, but only administrators
+// may edit or permanently remove them. Enforce authorization at the API layer.
+app.patch('/api/announcements/:id', auth, onlyAdmin, wrap(async (req, res) => {
+  if (!validId(req.params.id)) return fail(res, 'Invalid announcement ID.');
+  const title = clean(req.body?.title, 160), body = clean(req.body?.body, 3000);
+  const clubId = req.body?.clubId || null;
+  if (title.length < 3 || body.length < 8) return fail(res, 'Enter a title (at least 3 characters) and message (at least 8 characters).');
+  if (clubId && (!validId(clubId) || !(await Club.exists({ _id: clubId }))))
+    return fail(res, 'Selected community is not available.');
+  const announcement = await Announcement.findByIdAndUpdate(
+    req.params.id, { $set: { title, body, clubId } }, { new: true, runValidators: true }
+  );
+  if (!announcement) return fail(res, 'Announcement not found.', 404);
+  await audit(req.user._id, 'announcement_updated', 'Announcement', announcement._id);
+  res.json({ announcement });
+}));
+
+app.delete('/api/announcements/:id', auth, onlyAdmin, wrap(async (req, res) => {
+  if (!validId(req.params.id)) return fail(res, 'Invalid announcement ID.');
+  if (req.body?.confirmation !== 'DELETE') return fail(res, 'Type DELETE to confirm permanent removal.');
+  const announcement = await Announcement.findByIdAndDelete(req.params.id);
+  if (!announcement) return fail(res, 'Announcement not found.', 404);
+  await audit(req.user._id, 'announcement_deleted', 'Announcement', announcement._id);
+  res.json({ ok: true, deletedAnnouncementId: String(announcement._id) });
+}));
+
 app.get('/api/notifications', auth, wrap(async (req, res) => {
   const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(80);
   res.json({ notifications });
